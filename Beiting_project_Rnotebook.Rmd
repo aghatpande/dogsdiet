@@ -1,0 +1,283 @@
+---
+title: "Beiting project Notebook"
+output: html_notebook
+theme: united
+---
+## last worked on: 05062020-1000hrs
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r, libraries needed}
+library(readr)
+library(tidyverse)
+library(tidymodels)
+```
+
+# Beiting data processing using 642 fastq.gz files from the SRA downloaded on 4/28/2020
+## 1.figuring out missing file
+
+  we noticed we had only 320 sample IDs in the 640 fastq.gz files (640 / 2 = 320) that we downloaded from SRA. This means we were missing one sample's fastq files. To find out the missing sample we did:
+
+		cat runinfo.csv | grep "SRR"| cut -d "," -f1 > project_fastqs.txt
+
+  the above gave us all the fastq files in the project located in the SRA. Then we sorted the files for easy comparison to the downloaded files later
+
+		cat project_fastqs.txt | sort|uniq>project_fastqs_sorted.txt
+
+  since the downloaded fastq.gz files are split into forward and reverse runs, we have to filter the names to remove the split file designations filter out the unique sample IDs in a sorted manner
+
+  ls *.fastq.gz | cut -d '_' -f1 | sort | uniq > downloaded_fastqs.txt
+
+  finally to identify the missing sample files we do:
+
+		diff project_fastqs_sorted.txt downloaded_fastqs.txt 
+
+  we end up with the missing sample ID: SRR8452408 
+
+## 2. download the missing fastq files and gzip them
+
+		fastq-dump --split-files SRR8452408 
+
+## 3. Creating a 'fastq manifest' file needed to load the fastq-gz's in Qiime2
+
+  a .tsv file was generated in Numbers using the recipe in the Qiime2 docs at https://docs.qiime2.org/2020.2/tutorials/importing/. The file contained 3 tab separated fields starting at sample ID, absolute file path for the forward reads for the sample , with last field  being file path for reverse reads. The files generated were the foll:
+  fastqs_manifest.numbers (Numbers file) and fastqs_manifest.tsv
+
+## 4. loading data into Qiime2; dataset too large
+
+  following the recipe at the url above,  we attempted to load the dataset into Qiime2 using the cmd:
+
+      qiime tools import \
+        --type 'SampleData[PairedEndSequencesWithQuality]' \
+        --input-path fastqs_manifest.tsv \
+        --output-path paired-end-demux.qza \
+        --input-format PairedEndFastqManifestPhred33V2
+
+  this cmd initiated successfully and python 3.6 was creating the output Qiime 'artifact' paired-end-demux.qza. We noticed that the program after about 30 min made a 51 Gb .qza file and hence terminated the program
+
+## 5. loading data into Qiime2 attempt#2
+ 
+  First to import the metadata downloaded from the SRA as a csv file:
+
+```{r}
+runinfo <- read_csv("runinfo.csv")
+filtered_runinfo <- runinfo %>% select("Run", "spots", "bases", "spots_with_mates", "avgLength", "size_MB", "Experiment","LibraryName", "LibraryStrategy", "LibraryLayout","Sample","ScientificName","SampleName") # got rid of unnecessary cols like paths to sample downloads etc
+```
+
+  filtering the metadata further to identify technical control sampleIDs and healthy dog control IDs.
+
+```{r}
+list_of_technical_control_IDs <- filtered_runinfo %>% filter (grepl("DNA_extract|Mock|Water", SampleName))
+```
+
+  Now for healthy dog control 16S rRNA data sample IDs and saving them separately
+
+```{r}
+Samples_of_healthy_dogs <- filtered_runinfo %>% filter(agrepl("control_d?_Healthy_", SampleName))
+healthydogIDs <- Samples_of_healthy_dogs %>% select("Run")
+```
+
+  Importing the original fastqs_manifest.tsv file to use it to generate manifest files for the subsets of data we plan to process in Qiime
+
+```{r}
+allfastqs_manifest <- read_tsv("fastqs_manifest.tsv")
+```
+  Filtering the original manifest to generate a manifest for the healthy control dog IDs only
+
+```{r}
+healthy_dog_manifest <- allfastqs_manifest %>% filter (sampleid %in% healthydogIDs$Run) # see note below for avoiding heartache!
+```
+
+  The first column name in the allfastqs_manifest had its original title as 'sample-id'. The dash in the name meant the grepl method of filtering used earlier (e.g. see 2 chunks above) couldn't be used because the column name (e.g. SampleName) has to be without the single quotes. Hence, we had to replace the column name in the original manifest .tsv file with sampleid instead of 'sample-id' and the filtering method had to be switched to the "%in%" method with the other alterations as seen. I also spent about 4 hours troubleshooting this issue!
+
+  Now, exporting the healthy dog control manifest as a .tsv file
+
+```{r}
+healthy_dog_manifest %>% write_tsv("healthycontrols.tsv")
+```
+
+  The .tsv file needs to be a tab separated *text* file for Qiime2 to import. This was done using the foll command at commmand line:
+
+  cp healthycontrolsmanifest.tsv healthycontrolsmanifest
+ 
+## 6. pre-processing the technical control data as done above for the healthy controls
+
+  Filtering the original manifest for the technical control IDs
+
+```{r}
+setwd("/Users/asgghar/edu/metagenomics/beiting/analysisdocs")
+technical_controls_manifest <- allfastqs_manifest %>% filter(sampleid %in% list_of_technical_control_IDs$Run)
+technical_controls_manifest %>% write_tsv("techcontrols.tsv")
+setwd("/Users/asgghar/edu/metagenomics/beiting")
+```
+
+  The .tsv file needs to be a tab separated *text* file for Qiime2 to import. This was done using the foll command at commmand line:
+
+  cp techcontrols.tsv techcontrols
+
+
+## 7. importing the healthy controls data into Qiime2
+
+  the import was done using the foll command in the *Qiime2 conda environment*:
+
+      qiime tools import --type 'SampleData[PairedEndSequencesWithQuality]' --input-path healthycontrolsmanifest --output-path healthycontrolsdemux.qza --input-format PairedEndFastqManifestPhred33V2
+
+  The important parameters are as specified above for the data in SRA, which was already demuliplexed and sorted into per sample data (likely barcodes removed). The data was fastq format with Phred scores. We *assumed* that the Phred score is Phred33 based since Illumina moved from Phred64 a while ago (per Shilpa)
+
+  The data was successfully imported with the foll: message from Qiime2
+
+  Imported healthycontrolsmanifest as PairedEndFastqManifestPhred33V2 to healthycontrolsdemux.qza
+
+## 8. summarizing and visualizing the imported demultiplexed reads data
+
+  Following along the 'moving pictures' tutorial in Qiime 2 docs, we then generate a summary of the demulitplexed data in the *Qiime2 conda environment* and the /Users/asgghar/edu/metagenomics/beiting directory:
+
+        qiime demux summarize --i-data healthycontrolsdemux.qza --o-healthycontrolsdemux.qzv
+
+  The visualization is viewed using the command below in the same directory and environment:
+
+        qiime tools view healthycontrolsdemux.qzv
+
+  This visualization showed fastqc type box plots for randomly picked 10000 sequences from a total of ~ 2 million reads for forward data and similar data for the reverse reads. The median quality scores for all combined sequences was Phred 37-38. 
+
+## 9. picking ASVs (amplicon sequence variants aka zero noise OTUs) using dada2 method
+  DADA2 is a pipeline for detecting and correcting (correcting sequencing, PCR errors, removing PCR generated chimeric sequences where possible) Illumina amplicon sequence data. As implemented in the q2-dada2 plugin, this quality control process will additionally filter any phiX reads (commonly present in marker gene Illumina sequence data) that are identified in the sequencing data, and will filter chimeric sequences. It will also merge paired reads. For details see foll references in the ~/metagenomics subdirectory:
+  
+  *DADA2-paper-nature-methods2016.pdf*. Also see *comparision-of-metagenomic-methods-2020.pdf* in same directory for a comparison of 6 diff methods and this paper
+  claims the DADA2 method is one of the best at what it does. 
+       
+       qiime dada2 denoise-paired \
+        --i-demultiplexed-seqs healthycontrolsdemux.qza \
+        --p-trim-left-f 0 \
+        --p-trim-left-r 0 \
+        --p-trunc-len-f 250 \
+        --p-trunc-len-r 250 \
+        --o-representative-sequences healthycontrols-rep-seqs-dada2.qza \
+        --o-table table-healthycontrols-dada2.qza \
+        --o-denoising-stats healthycontrols-stats-dada2.qza \
+        ;
+        
+  Qiime2 produced the output with the foll message:
+  Saved FeatureTable[Frequency] to: table-healthycontrols-dada2.qza
+  Saved FeatureData[Sequence] to: healthycontrols-rep-seqs-dada2.qza
+  Saved SampleData[DADA2Stats] to: healthycontrols-stats-dada2.qza
+
+## 10. Visualizing the dada2 output
+        
+        qiime metadata tabulate \
+          --m-input-file healthycontrols-stats-dada2.qza \
+          --o-visualization healthycontrols-stats-dada2.qzv \
+         ;
+  
+  Qiime2 produced the output with the mesg:
+  Saved Visualization to: healthycontrols-stats-dada2.qzv
+  
+## 11. Next step below requires a file containing metadata about the samples
+
+  To generate a file called "sample-healthycontrols-metadata.tsv", we will use the previously created tibble: 
+  "Samples_of_healthy_dogs"
+
+```{r}
+healthydogmetadata <- Samples_of_healthy_dogs %>% select ("Run", "spots_with_mates", "Experiment", "LibraryName","Sample", "SampleName")
+healthydogmetadata <- healthydogmetadata %>% mutate("sampleid" = healthydogmetadata$Run)
+healthydogmetadata <- healthydogmetadata %>% select("sampleid", "spots_with_mates", "Experiment", "LibraryName", "Sample","SampleName")
+healthydogmetadata %>% write_tsv("sample-healthycontrols-metadata.tsv")
+```
+  
+  
+  
+## 12. Visualizing summary of featuretable and feature ID sequences
+
+### Generating the featuretable 
+
+      qiime feature-table summarize \
+        --i-table table-healthycontrols-dada2.qza \
+        --o-visualization healthycontrols-table.qzv \
+        --m-sample-metadata-file sample-healthycontrols-metadata.tsv \
+        ;
+  Qiime 2 successfully executed the cmd and reported:
+    Saved Visualization to: healthycontrols-table.qzv
+    
+  This table shows 27 samples contain 455 features with total frequency of 1.094 x 10^6 reads. Median frequency is 30,307 reads per sample. Of the 455 features 
+  i.e. unique sequences (standins for some phylum / genus / species) about ~ 50 are found in more than 10 samples. Most are found in less than 10 with a large number found in any 1 sample only. 
+  Given this distribution: can a single bacterial cell ingested incidentally by the subject show up in the poop sequencing? In general, what is the sensitivity of the poop sequencing? How can we tell established colonies in the gut versus transient population? 
+
+### generating reference sequences of each feature
+
+      qiime feature-table tabulate-seqs \
+        --i-data healthycontrols-rep-seqs-dada2.qza \
+        --o-visualization healthycontrols-rep-seqs.qzv \
+        ;
+  Qiime2 successfully executed with mesg:
+  Saved Visualization to: healthycontrols-rep-seqs.qzv
+  
+  The sequences in this visualization can be aligned to the Blast nt database to see which species / genus / phylum it represents.
+  
+  
+  
+## 13. generating tree for phylogenetic diversity analysis
+
+    qiime phylogeny align-to-tree-mafft-fasttree \
+     --i-sequences healthycontrols-rep-seqs-dada2.qza \
+     --o-alignment healthycontrols-aligned-rep-seqs.qza \
+     --o-masked-alignment healthycontrols-masked-aligned-rep-seqs.qza \
+     --o-tree healthycontrols-unrooted-tree.qza \
+     --o-rooted-tree healthycontrols-rooted-tree.qza \
+     ;
+     
+Qiime2 successfully executed with the mesg:
+  Saved FeatureData[AlignedSequence] to: healthycontrols-aligned-rep-seqs.qza
+  Saved FeatureData[AlignedSequence] to: healthycontrols-masked-aligned-rep-seqs.qza
+  Saved Phylogeny[Unrooted] to: healthycontrols-unrooted-tree.qza
+  Saved Phylogeny[Rooted] to: healthycontrols-rooted-tree.qza
+  
+  
+## 14. Alpha and beta diversity analysis
+
+### About alpha & beta diversity analysis from the moving pictures tutorial in Qiime2 docs (5/6/20)
+    We’ll first apply the core-metrics-phylogenetic method, which rarefies a FeatureTable[Frequency] to a user-specified depth, computes several alpha and beta diversity metrics, and generates principle coordinates analysis (PCoA) plots using Emperor for each of the beta diversity metrics. The metrics computed by default are:
+
+  Alpha diversity
+
+  Shannon’s diversity index (a quantitative measure of community richness)
+
+  Observed OTUs (a qualitative measure of community richness)
+
+  Faith’s Phylogenetic Diversity (a qualitiative measure of community richness that incorporates phylogenetic relationships between the features)
+
+  Evenness (or Pielou’s Evenness; a measure of community evenness)
+
+  Beta diversity
+
+  Jaccard distance (a qualitative measure of community dissimilarity)
+
+  Bray-Curtis distance (a quantitative measure of community dissimilarity)
+
+  unweighted UniFrac distance (a qualitative measure of community dissimilarity that incorporates phylogenetic relationships between the features)
+
+  weighted UniFrac distance (a quantitative measure of community dissimilarity that incorporates phylogenetic relationships between the features)
+  
+  An important parameter that needs to be provided to this script is --p-sampling-depth, which is the even sampling (i.e. rarefaction) depth. Because most diversity metrics are sensitive to different sampling depths across different samples, this script will randomly subsample the counts from each sample to the value provided for this parameter. For example, if you provide --p-sampling-depth 500, this step will subsample the counts in each sample without replacement so that each sample in the resulting table has a total count of 500. If the total count for any sample(s) are smaller than this value, those samples will be dropped from the diversity analysis. Choosing this value is tricky. We recommend making your choice by reviewing the information presented in the table.qzv file that was created above. Choose a value that is as high as possible (so you retain more sequences per sample) while excluding as few samples as possible.
+    
+    qiime diversity core-metrics-phylogenetic \
+     --i-phylogeny healthycontrols-rooted-tree.qza \
+     --i-table table-healthycontrols-dada2.qza \
+     --p-sampling-depth 12915 \
+     --m-metadata-file sample-healthycontrols-metadata.tsv \
+     --output-dir healthycontrols-core-metrics-results \
+     ;
+     
+   * The starting pt for the sampling depth parameter was 10600 from Beiting paper, we inc. sampling depth until one more sample dropped out. This way, we could retain the same number of samples (24) as in Beiting paper but we maximized the sampling depth of reads
+   
+   
+## 15. TBD (05062020-1000hrs): need to analyze all categories (controls, healthy, diseased together for diversity analysis)
+    
+------------------------------------------------------------------------------------------------------------------------------------------
+## R Notebook general tips
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
