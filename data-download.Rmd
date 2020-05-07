@@ -1,0 +1,79 @@
+---
+title: "data-download-hx"
+author: "ASG"
+date: "5/7/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. downloading data and runinfo for PRJNA515316
+  
+The project number for the EntiCe study is PRJNA515316. We downloaded the runinfo in the binfrmtcs (bioinfo on macbook pro) conda environment
+  
+    esearch -db SRA -query PRJNA515316 | efetch -format runinfo > runinfo.csv
+
+then getting the SRR number info
+
+    cat runinfo.csv | cut -f 1 -d ',' | grep SRR > runids.txt
+
+getting the data
+
+    cat runids.txt | parallel fastq-dump --split-files {}
+
+The parallel fastq-dump dowloaded 272 samples and then failed. We had to kill the process.
+
+When looking at the file sizes, we realized that the last samples downloaded could possibly be incorrect so we first copied all the downloaded 
+fastq file names into a file called now.txt using the command:
+
+    ls | grep SRR | cut -d '_' -f 1 | sort | uniq > now.txt
+
+then we compared the sorted runids.txt file to the now file and stored the difference in a file called remain.txt
+
+    less runids.txt | sort > runids.sorted.txt 
+
+the sorting was necessary for an accurate comparision with the sorted now.txt 
+    
+    diff runids.sorted.txt now.txt | grep '<' | cut -d ' ' -f2 > remain.txt 
+    
+diff introduces the '>' symbol before each file that is different in the 2
+So, we needed to search for the '<' using grep and then cut the output to remove the first field.
+
+We then manually edited the remain.txt to file to remove the 4 .fastq file names that corresponded to the files downloaded last and were 
+potentially corrupt.
+
+    rm SRR8452366*
+    rm SRR8452371*
+    rm SRR8452372*
+    rm SRR8452386*
+
+Finally we gzipped the already downloaded .fastq files to free up some disk space.
+
+    gzip *.fastq &
+
+## 2.figuring out missing file
+
+we noticed we had only 320 sample IDs in the 640 fastq.gz files (640 / 2 = 320) that we downloaded from SRA. This means we were missing one sample's fastq files. To find out the missing sample we did:
+
+    cat runinfo.csv | grep "SRR"| cut -d "," -f1 > project_fastqs.txt
+
+the above gave us all the fastq files in the project located in the SRA. Then we sorted the files for easy comparison to the downloaded files later
+
+    cat project_fastqs.txt | sort|uniq>project_fastqs_sorted.txt
+
+since the downloaded fastq.gz files are split into forward and reverse runs, we have to filter the names to remove the split file designations filter out the unique sample IDs in a sorted manner
+
+    ls *.fastq.gz | cut -d '_' -f1 | sort | uniq > downloaded_fastqs.txt
+
+finally to identify the missing sample files we do:
+
+    diff project_fastqs_sorted.txt downloaded_fastqs.txt 
+
+we end up with the missing sample ID: SRR8452408 
+
+## 3. download the missing fastq files and gzip them
+
+		fastq-dump --split-files SRR8452408 
+
