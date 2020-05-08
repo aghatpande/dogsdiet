@@ -1,0 +1,28 @@
+---
+title: "day0-respndrs+nonrespndrs"
+author: "ASG"
+date: "5/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+The experimental arm of the study included many (?) dogs. Of these, some dogs responded and others didn't repond well to diet intervention. In order to understand if these dogs with clinical IBD had a significantly different microbiome we need to compare their microbiomes to those with the healthy control dogs. 
+
+```{r, filtering runinfo for day0-respndrs+nonrespndrs}
+day0Runinfo <- filtered_runinfo %>% filter(agrepl("C166_dd_Day0_", SampleName))
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

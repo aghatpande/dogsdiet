@@ -11,10 +11,10 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Introduction
 
-There are multiple samples (sequencing libraries) which are different controls run for this study
+There are multiple samples (sequencing libraries) representing different types of technical controls, viz, water, DNA extraction, mock etc. The descriptions are found in the "SampleName" column of the original 'runinfo.csv" and its derivative variables 
 
 ```{r, filtering runinfo for techcontrols}
-
+techcntrlsRuninfo <- filtered_runinfo %>% filter (grepl("DNA_extract|Mock|Water", SampleName))
 ```
 
 ## Including Plots
