@@ -3,7 +3,7 @@ title: "Beiting project Notebook"
 output: html_notebook
 theme: united
 ---
-## last worked on: 05062020-1000hrs
+## last worked on: 05082020-1000hrs
 This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
 
 Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
@@ -14,7 +14,7 @@ library(tidyverse)
 library(tidymodels)
 ```
 
-# Beiting data processing using 642 fastq.gz files from the SRA downloaded on 4/28/2020
+# data processing using 642 fastq.gz files from the SRA downloaded on 4/28/2020
 ## 1.figuring out missing file
 
   we noticed we had only 320 sample IDs in the 640 fastq.gz files (640 / 2 = 320) that we downloaded from SRA. This means we were missing one sample's fastq files. To find out the missing sample we did:
@@ -62,7 +62,7 @@ library(tidymodels)
 
 ```{r}
 runinfo <- read_csv("runinfo.csv")
-filtered_runinfo <- runinfo %>% select("Run", "spots", "bases", "spots_with_mates", "avgLength", "size_MB", "Experiment","LibraryName", "LibraryStrategy", "LibraryLayout","Sample","ScientificName","SampleName") # got rid of unnecessary cols like paths to sample downloads etc
+filtered_runinfo <- runinfo %>% select("Run", "spots_with_mates", "Experiment","SampleName", "LibraryName", "LibraryStrategy", "LibrarySelection", "Model", "Sample","BioSample") # got rid of unnecessary cols like paths to sample downloads etc
 ```
 
   filtering the metadata further to identify technical control sampleIDs and healthy dog control IDs.

@@ -1,0 +1,59 @@
+---
+title: "The EntiCe study"
+author: "S. Rao"
+date: "5/8/2020"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## R Markdown
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document.
+
+## Introduction-1
+
+The EntiCe study, published in 2019, was carried out by a UPenn team consisting of basic researchers, veternarians and CHOP pediatricians led by Prof. Daniel Beiting. 
+
+The driving hypothesis: inflammatory bowel disease in dogs (a model for the human version) is likely a result of an altered gut microbiome. 
+
+By restoring this microbiome to a healthy one using a special diet of hydrolysed protein, diet-responsive dogs showed a marked improvement in their symptoms.
+
+## Introduction-2  
+
+  The study tracked gut microbiome changes in 29 dogs exhibiting IBD symptoms over the course of 42 days. 
+  
+  The primary means of tracking was NGS based, 16S rRNA metabarcoding of stool samples taken from these dogs along with appropriate healthy controls. 
+  
+## Introduction-3
+
+  The study was a comprehensive test of the hypothesis and included a novel metabolomic identification of putative antibiotics that restore the healthy microbiome. 
+  
+  We can't recommend enough that you to read the original open access paper to understand the very comprehensive approach taken by the researchers. Here is a link to the paper:
+  
+  https://link.springer.com/article/10.1186/s40168-019-0740-4
+  
+## Introduction-4
+
+  Here, I focus on a re-analysis of the metabarcoding using Qiime2 and R.
+  
+## Slide with bullets
+
+- Bullet 1
+- Bullet 2
+- Bullet 3
+
+## Slide with R Output
+
+```{r cars, echo = TRUE}
+summary(cars)
+```
+
+## Slide with Plot
+
+```{r pressure}
+plot(pressure)
+```
+

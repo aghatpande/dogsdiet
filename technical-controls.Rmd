@@ -1,0 +1,28 @@
+---
+title: "technical-controls"
+author: "A. S. Ghatpande"
+date: "5/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+There are multiple samples (sequencing libraries) which are different controls run for this study
+
+```{r, filtering runinfo for techcontrols}
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
