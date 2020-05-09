@@ -17,6 +17,35 @@ There are multiple samples (sequencing libraries) representing different types o
 techcntrlsRuninfo <- filtered_runinfo %>% filter (grepl("DNA_extract|Mock|Water", SampleName))
 ```
 
+Generating a manifest file that Qiime2 needs for importing data
+
+```{r, generating the techcontrols manifest file}
+techcntrls_manifest <- allfastqs_manifest %>% filter (sampleid %in% techcntrlsRuninfo$Run)
+techcntrls_manifest %>% write_tsv("techcntrlsManifest.tsv")
+```
+
+The .tsv file needs to be a tab separated *text* file for Qiime2 to import. This was done using the foll command at commmand line:
+
+    cp techcntrlsManifest.tsv techcntrlsManifest
+  
+## 7. importing the technical controls data into Qiime2
+
+  *Note the fastq.gz files need to be in the PWD for this step*. The import was done using the foll command in the *Qiime2 conda environment*:
+
+      qiime tools import --type 'SampleData[PairedEndSequencesWithQuality]'\
+      --input-path techcntrlsManifest\
+      --output-path techcntrlsdemux.qza\
+      --input-format PairedEndFastqManifestPhred33V2\
+      ;
+
+The important parameters are as specified above for the data in SRA, which was already demuliplexed and sorted into per sample data (likely barcodes removed). The data was fastq format with Phred scores. We *assumed* that the Phred score is Phred33 based since Illumina moved from Phred64 a while ago (per Shilpa)
+
+The data was successfully imported with the foll: message from Qiime2
+
+  Imported techcntrlsManifest as PairedEndFastqManifestPhred33V2 to techcntrlsdemux.qza
+
+
+
 ## Including Plots
 
 You can also embed plots, for example:

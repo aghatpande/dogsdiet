@@ -2,3 +2,9 @@
 .Rhistory
 .RData
 .Ruserdata
+healthycontrolsdemux.qza
+*.qzv
+healthycontrols-core-metrics-results
+FASTQs
+analysisdocs
+*.html

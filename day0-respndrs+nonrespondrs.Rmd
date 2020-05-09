@@ -17,6 +17,34 @@ The experimental arm of the study included many (?) dogs. Of these, some dogs re
 day0Runinfo <- filtered_runinfo %>% filter(agrepl("C166_dd_Day0_", SampleName))
 ```
 
+Generating a manifest file that Qiime2 needs for importing data
+
+```{r, generating the day0 manifest file}
+day0_manifest <- allfastqs_manifest %>% filter (sampleid %in% day0Runinfo$Run)
+day0_manifest %>% write_tsv("day0Manifest.tsv")
+```
+
+The .tsv file needs to be a tab separated *text* file for Qiime2 to import. This was done using the foll command at commmand line:
+
+    cp day0Manifest.tsv day0Manifest
+    
+## 7. importing the day0 data into Qiime2
+
+  *Note the fastq.gz files need to be in the PWD for this step*. The import was done using the foll command in the *Qiime2 conda environment*:
+
+      qiime tools import --type 'SampleData[PairedEndSequencesWithQuality]'\
+      --input-path day0Manifest\
+      --output-path day0demux.qza\
+      --input-format PairedEndFastqManifestPhred33V2\
+      ;
+
+The important parameters are as specified above for the data in SRA, which was already demuliplexed and sorted into per sample data (likely barcodes removed). The data was fastq format with Phred scores. We *assumed* that the Phred score is Phred33 based since Illumina moved from Phred64 a while ago (per Shilpa)
+
+The data was successfully imported with the foll: message from Qiime2
+
+  Imported day0Manifest as PairedEndFastqManifestPhred33V2 to day0demux.qza
+
+    
 ## Including Plots
 
 You can also embed plots, for example:
