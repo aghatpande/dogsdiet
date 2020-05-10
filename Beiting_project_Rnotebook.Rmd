@@ -133,13 +133,17 @@ setwd("/Users/asgghar/edu/metagenomics/beiting")
 
   Following along the 'moving pictures' tutorial in Qiime 2 docs, we then generate a summary of the demulitplexed data in the *Qiime2 conda environment* and the /Users/asgghar/edu/metagenomics/beiting directory:
 
-        qiime demux summarize --i-data healthycontrolsdemux.qza --o-healthycontrolsdemux.qzv
+        qiime demux summarize --i-data healthycontrolsdemux.qza\
+                              --o-visualization healthycontrolsdemux.qzv\
+                              ;
 
   The visualization is viewed using the command below in the same directory and environment:
 
         qiime tools view healthycontrolsdemux.qzv
 
   This visualization showed fastqc type box plots for randomly picked 10000 sequences from a total of ~ 2 million reads for forward data and similar data for the reverse reads. The median quality scores for all combined sequences was Phred 37-38. 
+  
+  *The UPenn team used an average Phred score of 20 for each sample and removed sequences >256 nt and < 250 nt in length per the paper*
 
 ## 9. picking ASVs (amplicon sequence variants aka zero noise OTUs) using dada2 method
   DADA2 is a pipeline for detecting and correcting (correcting sequencing, PCR errors, removing PCR generated chimeric sequences where possible) Illumina amplicon sequence data. As implemented in the q2-dada2 plugin, this quality control process will additionally filter any phiX reads (commonly present in marker gene Illumina sequence data) that are identified in the sequencing data, and will filter chimeric sequences. It will also merge paired reads. For details see foll references in the ~/metagenomics subdirectory:
@@ -213,8 +217,6 @@ healthydogmetadata %>% write_tsv("sample-healthycontrols-metadata.tsv")
   Saved Visualization to: healthycontrols-rep-seqs.qzv
   
   The sequences in this visualization can be aligned to the Blast nt database to see which species / genus / phylum it represents.
-  
-  
   
 ## 13. generating tree for phylogenetic diversity analysis
 

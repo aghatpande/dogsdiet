@@ -19,13 +19,13 @@ The EntiCe study, published in 2019, was carried out by a UPenn team consisting 
 
 The driving hypothesis: inflammatory bowel disease in dogs (a model for the human version) is likely a result of an altered gut microbiome. 
 
-By restoring this microbiome to a healthy one using a special diet of hydrolysed protein, diet-responsive dogs showed a marked improvement in their symptoms.
+By restoring this microbiome to a healthy one using a special diet of hydrolysed protein, diet-responsive dogs (n=20, non-responsive n=9) showed a marked improvement in their symptoms.
 
 ## Introduction-2  
 
   The study tracked gut microbiome changes in 29 dogs exhibiting IBD symptoms over the course of 42 days. 
   
-  The primary means of tracking was NGS based, 16S rRNA metabarcoding of stool samples taken from these dogs along with appropriate healthy controls. 
+  The primary means of tracking was NGS based, 16S rRNA metabarcoding of stool samples taken from these dogs along with appropriate healthy controls (n=24). 
   
 ## Introduction-3
 

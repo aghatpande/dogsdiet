@@ -46,6 +46,24 @@ The data was successfully imported with the foll: message from Qiime2
 
 
 
+## 8. summarizing and visualizing the imported demultiplexed reads data
+
+Following along the 'moving pictures' tutorial in Qiime 2 docs, we then generate a summary of the demulitplexed data in the *Qiime2 conda environment* and the /Users/asgghar/edu/metagenomics/beiting directory:
+
+        qiime demux summarize --i-data techcntrlsdemux.qza\
+                              --o-visualization techcntrlsdemux.qzv\
+                              ;
+    
+Qiime 2 reported: Saved Visualization to: techcntrlsdemux.qzv
+
+  The visualization is viewed using the command below in the same directory and environment:
+
+        qiime tools view techcntrlsdemux.qzv
+
+  *The UPenn team used an average Phred score of 20 for each sample and removed sequences >256 nt and < 250 nt in length per the paper*
+
+
+
 ## Including Plots
 
 You can also embed plots, for example:

@@ -11,16 +11,29 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Introduction
 
-The experimental arm of the study included many (?) dogs. Of these, some dogs responded and others didn't repond well to diet intervention. In order to understand if these dogs with clinical IBD had a significantly different microbiome we need to compare their microbiomes to those with the healthy control dogs. 
+The experimental arm of the study included many (29 per paper) dogs. Of these, some dogs responded and others didn't repond well to diet intervention. In order to understand if these dogs with clinical IBD had a significantly different microbiomes before the dietary manipulation we need to compare their microbiomes to those with the healthy control dogs. 
 
 ```{r, filtering runinfo for day0-respndrs+nonrespndrs}
 day0Runinfo <- filtered_runinfo %>% filter(agrepl("C166_dd_Day0_", SampleName))
 ```
 
-Generating a manifest file that Qiime2 needs for importing data
+## Filtering out technical replicates on the basis of number of reads
+
+The authors mention that their 'experimental' cohort comprised 29 dogs. In this data we have 49 samples. Examination of the 'day0Runinfo' table (sort by SampleName in RStudio to make for easier inspection) shows replicates from very likely the same subject. For example, in the sorted day0Runinfo table the first three rows with SampleNames C166_01_Day0_10815, C166_01_Day0_10943, C166_01_Day0_11535 differ only by their library names (last number after the '_'). These three entries show very different read counts : 1641, 21711, 51325 respectively. Similarly other samples show a similar pattern. 
+
+Our tactic is to filter out by the dogIDs (middle 2 numbers in SampleName) and take the the data with the maximum read counts, assuming the read count reflects a sequencing run with the best conditions.
+
+```{r, filtering day0 data based on read counts}
+day0spots <- day0Runinfo %>% mutate(pairedReads = as.numeric(spots_with_mates)) %>% select(Run,SampleName,pairedReads)
+day0Runs<-day0spots %>% separate(SampleName,c("Name","dogID", "day","libID")) %>% select(dogID, Run, pairedReads) %>% group_by(dogID) %>% filter(pairedReads == max(pairedReads))
+```
+
+
+
+## Generating a manifest file that Qiime2 needs for importing data
 
 ```{r, generating the day0 manifest file}
-day0_manifest <- allfastqs_manifest %>% filter (sampleid %in% day0Runinfo$Run)
+day0_manifest <- allfastqs_manifest %>% filter (sampleid %in% day0Runs$Run)
 day0_manifest %>% write_tsv("day0Manifest.tsv")
 ```
 
@@ -45,6 +58,34 @@ The data was successfully imported with the foll: message from Qiime2
   Imported day0Manifest as PairedEndFastqManifestPhred33V2 to day0demux.qza
 
     
+## 8. summarizing and visualizing the imported demultiplexed reads data
+
+Following along the 'moving pictures' tutorial in Qiime 2 docs, we then generate a summary of the demulitplexed data in the *Qiime2 conda environment* and the /Users/asgghar/edu/metagenomics/beiting directory:
+
+        qiime demux summarize --i-data day0demux.qza\
+                              --o-visualization day0demux.qzv\
+                              ;
+            
+  Qiime2 says: Saved Visualization to: day0demux.qzv
+
+  The visualization is viewed using the command below in the same directory and environment:
+
+        qiime tools view day0demux.qzv
+
+  *The UPenn team used an average Phred score of 20 for each sample and removed sequences >256 nt and < 250 nt in length per the paper*
+  
+## Filtering out technical replicates on the basis of number of reads
+
+The authors mention that their 'experimental' cohort comprised 29 dogs. In this data we have 49 samples. Examination of the 'day0Runinfo' table (sort by SampleName in RStudio to make for easier inspection) shows replicates from very likely the same subject. For example, in the sorted day0Runinfo table the first three rows with SampleNames C166_01_Day0_10815, C166_01_Day0_10943, C166_01_Day0_11535 differ only by their library names (last number after the '_'). These three entries show very different read counts : 1641, 21711, 51325 respectively. Similarly other samples show a similar pattern. 
+
+Our tactic is to filter out by the dogIDs (middle 2 numbers in SampleName) and take the the data with the maximum read counts, assuming the read count reflects a sequencing run with the best conditions.
+
+```{r, filtering day0 data based on read counts}
+day0spots <- day0Runinfo %>% mutate(pairedReads = as.numeric(spots_with_mates)) %>% select(Run,SampleName,pairedReads)
+day0Runs<-day0spots %>% separate(SampleName,c("Name","dogID", "day","libID")) %>% select(dogID, Run, pairedReads) %>% group_by(dogID) %>% filter(pairedReads == max(pairedReads))
+```
+
+
 ## Including Plots
 
 You can also embed plots, for example:
