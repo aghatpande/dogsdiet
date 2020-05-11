@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Introduction
 
-The experimental arm of the study included many (29 per paper) dogs. Of these, some dogs responded and others didn't repond well to diet intervention. In order to understand if these dogs with clinical IBD had a significantly different microbiomes before the dietary manipulation we need to compare their microbiomes to those with the healthy control dogs. 
+The experimental arm of the study included many (29 per paper) dogs. Of these, some dogs responded and others didn't repond well to diet intervention. In order to understand if these dogs with clinical IBD had significantly different microbiomes before the dietary manipulation we need to compare their microbiomes to those with the healthy control dogs. 
 
 ```{r, filtering runinfo for day0-respndrs+nonrespndrs}
 day0Runinfo <- filtered_runinfo %>% filter(agrepl("C166_dd_Day0_", SampleName))
@@ -74,16 +74,27 @@ Following along the 'moving pictures' tutorial in Qiime 2 docs, we then generate
 
   *The UPenn team used an average Phred score of 20 for each sample and removed sequences >256 nt and < 250 nt in length per the paper*
   
-## Filtering out technical replicates on the basis of number of reads
-
-The authors mention that their 'experimental' cohort comprised 29 dogs. In this data we have 49 samples. Examination of the 'day0Runinfo' table (sort by SampleName in RStudio to make for easier inspection) shows replicates from very likely the same subject. For example, in the sorted day0Runinfo table the first three rows with SampleNames C166_01_Day0_10815, C166_01_Day0_10943, C166_01_Day0_11535 differ only by their library names (last number after the '_'). These three entries show very different read counts : 1641, 21711, 51325 respectively. Similarly other samples show a similar pattern. 
-
-Our tactic is to filter out by the dogIDs (middle 2 numbers in SampleName) and take the the data with the maximum read counts, assuming the read count reflects a sequencing run with the best conditions.
-
-```{r, filtering day0 data based on read counts}
-day0spots <- day0Runinfo %>% mutate(pairedReads = as.numeric(spots_with_mates)) %>% select(Run,SampleName,pairedReads)
-day0Runs<-day0spots %>% separate(SampleName,c("Name","dogID", "day","libID")) %>% select(dogID, Run, pairedReads) %>% group_by(dogID) %>% filter(pairedReads == max(pairedReads))
-```
+## 9. picking ASVs (amplicon sequence variants aka zero noise OTUs) using dada2 method
+  DADA2 is a pipeline for detecting and correcting (correcting sequencing, PCR errors, removing PCR generated chimeric sequences where possible) Illumina amplicon sequence data. As implemented in the q2-dada2 plugin, this quality control process will additionally filter any phiX reads (commonly present in marker gene Illumina sequence data) that are identified in the sequencing data, and will filter chimeric sequences. It will also merge paired reads. For details see foll references in the ~/metagenomics subdirectory:
+  
+  *DADA2-paper-nature-methods2016.pdf*. Also see *comparision-of-metagenomic-methods-2020.pdf* in same directory for a comparison of 6 diff methods and this paper
+  claims the DADA2 method is one of the best at what it does. 
+       
+       qiime dada2 denoise-paired \
+        --i-demultiplexed-seqs day0demux.qza \
+        --p-trim-left-f 0 \
+        --p-trim-left-r 0 \
+        --p-trunc-len-f 250 \
+        --p-trunc-len-r 250 \
+        --o-representative-sequences day0-rep-seqs.qza \
+        --o-table day0-table.qza \
+        --o-denoising-stats day0-stats.qza \
+        ;
+        
+  Qiime2 produced the output with the foll message:
+  Saved FeatureTable[Frequency] to: day0-table.qza
+Saved FeatureData[Sequence] to: day0-rep-seqs.qza
+Saved SampleData[DADA2Stats] to: day0-stats.qza
 
 
 ## Including Plots

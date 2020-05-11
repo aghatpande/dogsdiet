@@ -64,6 +64,30 @@ Qiime 2 reported: Saved Visualization to: techcntrlsdemux.qzv
 
 
 
+## 9. picking ASVs (amplicon sequence variants aka zero noise OTUs) using dada2 method
+  DADA2 is a pipeline for detecting and correcting (correcting sequencing, PCR errors, removing PCR generated chimeric sequences where possible) Illumina amplicon sequence data. As implemented in the q2-dada2 plugin, this quality control process will additionally filter any phiX reads (commonly present in marker gene Illumina sequence data) that are identified in the sequencing data, and will filter chimeric sequences. It will also merge paired reads. For details see foll references in the ~/metagenomics subdirectory:
+  
+  *DADA2-paper-nature-methods2016.pdf*. Also see *comparision-of-metagenomic-methods-2020.pdf* in same directory for a comparison of 6 diff methods and this paper
+  claims the DADA2 method is one of the best at what it does. 
+       
+       qiime dada2 denoise-paired \
+        --i-demultiplexed-seqs techcntrlsdemux.qza \
+        --p-trim-left-f 0 \
+        --p-trim-left-r 0 \
+        --p-trunc-len-f 250 \
+        --p-trunc-len-r 250 \
+        --o-representative-sequences techcntrls-rep-seqs.qza \
+        --o-table techcntrls-table.qza \
+        --o-denoising-stats techcntrls-stats.qza \
+        ;
+        
+Qiime2 produced the output with the foll message:
+Saved FeatureTable[Frequency] to: techcntrls-table.qza
+Saved FeatureData[Sequence] to: techcntrls-rep-seqs.qza
+Saved SampleData[DADA2Stats] to: techcntrls-stats.qza
+
+
+
 ## Including Plots
 
 You can also embed plots, for example:

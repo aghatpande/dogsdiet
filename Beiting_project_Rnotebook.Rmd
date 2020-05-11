@@ -3,17 +3,6 @@ title: "Beiting project Notebook"
 output: html_notebook
 theme: united
 ---
-## last worked on: 05082020-1000hrs
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
-
-```{r, libraries needed}
-library(readr)
-library(tidyverse)
-library(tidymodels)
-```
-
 # data processing using 642 fastq.gz files from the SRA downloaded on 4/28/2020
 ## 1.figuring out missing file
 
