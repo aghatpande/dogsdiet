@@ -98,8 +98,8 @@ Following along the 'moving pictures' tutorial in Qiime 2 docs, we then generate
         --o-denoising-stats day0-stats.qza \
         ;
         
-  Qiime2 produced the output with the foll message:
-  Saved FeatureTable[Frequency] to: day0-table.qza
+Qiime2 produced the output with the foll message:
+Saved FeatureTable[Frequency] to: day0-table.qza
 Saved FeatureData[Sequence] to: day0-rep-seqs.qza
 Saved SampleData[DADA2Stats] to: day0-stats.qza
 
@@ -112,7 +112,7 @@ Saved SampleData[DADA2Stats] to: day0-stats.qza
          ;
   
 Qiime2 produced the output with the mesg:
-not done for day) data
+Saved Visualization to: day0-stats.qzv
 
 ## 11. Next step below requires a file containing metadata about the samples
 

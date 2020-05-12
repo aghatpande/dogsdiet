@@ -182,9 +182,9 @@ setwd("/Users/asgghar/edu/metagenomics/beiting")
   To generate a file called "sample-healthycontrols-metadata.tsv", we will use the previously created tibble: healthycontrolRuninfo
 
 ```{r}
-healthydogmetadata <- healthycontrolRuninfo %>% select ("Run", "spots_with_mates", "Experiment", "LibraryName","Sample", "SampleName")
-healthydogmetadata <- healthydogmetadata %>% mutate("sampleid" = healthydogmetadata$Run)
-healthydogmetadata <- healthydogmetadata %>% select("sampleid", "spots_with_mates", "Experiment", "LibraryName", "Sample","SampleName")
+healthydogmetadata <- healthycontrolRuninfo %>% select ("sampleid", "spots_with_mates", "Experiment", "LibraryName","Sample", "SampleName")
+healthydogmetadata <- healthydogmetadata %>% mutate("category" = 'healthy_control')
+healthydogmetadata <- healthydogmetadata %>% select("sampleid", "spots_with_mates", "Experiment", "LibraryName", "Sample","SampleName", "category")
 healthydogmetadata %>% write_tsv("healthycontrols-sample-metadata.tsv")
 ```
   

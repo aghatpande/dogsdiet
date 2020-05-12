@@ -68,8 +68,9 @@ The important parameters are as specified above for the data in SRA, which was a
 
 The data was successfully imported with the foll: message from Qiime2
 
-  Imported techcntrlsManifest as PairedEndFastqManifestPhred33V2 to techcntrlsdemux.qza
-
+Imported waterCntrlmanifest as PairedEndFastqManifestPhred33V2 to waterCntrldemux.qza
+Imported DNAxtractCntrlmanifest as PairedEndFastqManifestPhred33V2 to DNAxtractCntrldemux.qza
+Imported MockCntrlmanifest as PairedEndFastqManifestPhred33V2 to mockCntrldemux.qza
 
 
 ## 8. summarizing and visualizing the imported demultiplexed reads data
@@ -88,7 +89,9 @@ Following along the 'moving pictures' tutorial in Qiime 2 docs, we then generate
                               --o-visualization mockCntrldemux.qzv\
                               ;
     
-Qiime 2 reported: Saved Visualization to: techcntrlsdemux.qzv
+Qiime 2 reported: Saved Visualization to: waterCntrldemux.qzv; Saved Visualization to: DNAxtractCntrldemux.qzv; Saved Visualization to: mockCntrldemux.qzv
+
+
 
   The visualization is viewed using the command below in the same directory and environment:
 
@@ -144,13 +147,24 @@ Qiime 2 reported: Saved Visualization to: techcntrlsdemux.qzv
         
 Qiime2 produced the output with the foll message:
 
+Saved FeatureTable[Frequency] to: watercntrl-table.qza
+Saved FeatureData[Sequence] to: watercntrl-rep-seqs.qza
+Saved SampleData[DADA2Stats] to: watercntrl-stats.qza
+
+Saved FeatureTable[Frequency] to: dnaxtractcntrl-table.qza
+Saved FeatureData[Sequence] to: dnaxtractcntrl-rep-seqs.qza
+Saved SampleData[DADA2Stats] to: dnaxtractcntrl-stats.qza
+
+Saved FeatureTable[Frequency] to: mockcntrl-table.qza
+Saved FeatureData[Sequence] to: mockcntrl-rep-seqs.qza
+Saved SampleData[DADA2Stats] to: mockcntrl-stats.qza
 
 
 ## 10. Visualizing the dada2 output (TBD)
         
-        qiime metadata tabulate \
-          --m-input-file techcntrls-stats.qza \
-          --o-visualization techcntrls-stats.qzv \
+        qiime metadata tabulate\
+          --m-input-file techcntrls-stats.qza\
+          --o-visualization techcntrls-stats.qzv\
          ;
   
 Qiime2 produced the output with the mesg:
@@ -175,13 +189,3 @@ mockCntrlmetadata %>% write_tsv("mockCntrl-sample-metadata.tsv")
   
   
 
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
