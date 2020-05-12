@@ -3,6 +3,12 @@ title: "Beiting project Notebook"
 output: html_notebook
 theme: united
 ---
+
+```{r, libraries}
+library(readr)
+library(tidyverse)
+```
+
 # data processing using 642 fastq.gz files from the SRA downloaded on 4/28/2020
 ## 1.figuring out missing file
 
@@ -46,28 +52,33 @@ theme: united
   this cmd initiated successfully and python 3.6 was creating the output Qiime 'artifact' paired-end-demux.qza. We noticed that the program after about 30 min made a 51 Gb .qza file and hence terminated the program
 
 ## 5. loading data into Qiime2 attempt#2
- 
-  First to import the metadata downloaded from the SRA as a csv file:
+
+First to import the metadata downloaded from the SRA as a csv file:
 
 ```{r}
 runinfo <- read_csv("runinfo.csv")
 filtered_runinfo <- runinfo %>% select("Run", "spots_with_mates", "Experiment","SampleName", "LibraryName", "LibraryStrategy", "LibrarySelection", "Model", "Sample","BioSample") # got rid of unnecessary cols like paths to sample downloads etc
 ```
 
-  filtering the metadata further to identify technical control sampleIDs and healthy dog control IDs.
+filtering the metadata further to identify technical control sampleIDs and healthy dog control IDs.
 
-```{r}
-list_of_technical_control_IDs <- filtered_runinfo %>% filter (grepl("DNA_extract|Mock|Water", SampleName))
+```{r, filtering runinfo for techcontrols and sorting them separately by category}
+techcntrlsRuninfo <- filtered_runinfo %>% filter (grepl("DNA_extract|Mock|Water", SampleName))
+waterCntrlRuninfo <- techcntrlsRuninfo %>% filter(grepl("Water", SampleName))
+DNAxtractCntrlRuninfo <- techcntrlsRuninfo %>% filter(grepl("DNA", SampleName))
+MockCntrlsRuninfo <- techcntrlsRuninfo %>% filter(grepl("Mock", SampleName))
 ```
 
-  Now for healthy dog control 16S rRNA data sample IDs and saving them separately
+Now for healthy dog control 16S rRNA data sample IDs and some needed rearrangements
 
 ```{r}
-Samples_of_healthy_dogs <- filtered_runinfo %>% filter(agrepl("control_d?_Healthy_", SampleName))
-healthydogIDs <- Samples_of_healthy_dogs %>% select("Run")
+healthycontrolRuninfo <- filtered_runinfo %>% filter(agrepl("control_d?_Healthy_", SampleName))
+healthycontrolRuninfo <- healthycontrolRuninfo %>% mutate("sampleid" = Run)
+healthycontrolRuninfo <- healthycontrolRuninfo %>% select(-(Run))
+healthycontrolRuninfo <- healthycontrolRuninfo %>% select("sampleid", "spots_with_mates", "Experiment","SampleName", "LibraryName", "LibraryStrategy", "LibrarySelection", "Model", "Sample","BioSample")
 ```
 
-  Importing the original fastqs_manifest.tsv file to use it to generate manifest files for the subsets of data we plan to process in Qiime
+Importing the original fastqs_manifest.tsv file to use it to generate manifest files for the subsets of data we plan to process in Qiime
 
 ```{r}
 allfastqs_manifest <- read_tsv("fastqs_manifest.tsv")
@@ -75,7 +86,7 @@ allfastqs_manifest <- read_tsv("fastqs_manifest.tsv")
   Filtering the original manifest to generate a manifest for the healthy control dog IDs only
 
 ```{r}
-healthy_dog_manifest <- allfastqs_manifest %>% filter (sampleid %in% healthydogIDs$Run) # see note below for avoiding heartache!
+healthy_dog_manifest <- allfastqs_manifest %>% filter (sampleid %in% healthycontrolRuninfo$sampleid) # see note below for avoiding heartache!
 ```
 
   The first column name in the allfastqs_manifest had its original title as 'sample-id'. The dash in the name meant the grepl method of filtering used earlier (e.g. see 2 chunks above) couldn't be used because the column name (e.g. SampleName) has to be without the single quotes. Hence, we had to replace the column name in the original manifest .tsv file with sampleid instead of 'sample-id' and the filtering method had to be switched to the "%in%" method with the other alterations as seen. I also spent about 4 hours troubleshooting this issue!
@@ -168,26 +179,24 @@ setwd("/Users/asgghar/edu/metagenomics/beiting")
   
 ## 11. Next step below requires a file containing metadata about the samples
 
-  To generate a file called "sample-healthycontrols-metadata.tsv", we will use the previously created tibble: 
-  "Samples_of_healthy_dogs"
+  To generate a file called "sample-healthycontrols-metadata.tsv", we will use the previously created tibble: healthycontrolRuninfo
 
 ```{r}
-healthydogmetadata <- Samples_of_healthy_dogs %>% select ("Run", "spots_with_mates", "Experiment", "LibraryName","Sample", "SampleName")
+healthydogmetadata <- healthycontrolRuninfo %>% select ("Run", "spots_with_mates", "Experiment", "LibraryName","Sample", "SampleName")
 healthydogmetadata <- healthydogmetadata %>% mutate("sampleid" = healthydogmetadata$Run)
 healthydogmetadata <- healthydogmetadata %>% select("sampleid", "spots_with_mates", "Experiment", "LibraryName", "Sample","SampleName")
-healthydogmetadata %>% write_tsv("sample-healthycontrols-metadata.tsv")
+healthydogmetadata %>% write_tsv("healthycontrols-sample-metadata.tsv")
 ```
   
   
   
 ## 12. Visualizing summary of featuretable and feature ID sequences
-
 ### Generating the featuretable 
 
       qiime feature-table summarize \
         --i-table table-healthycontrols-dada2.qza \
         --o-visualization healthycontrols-table.qzv \
-        --m-sample-metadata-file sample-healthycontrols-metadata.tsv \
+        --m-sample-metadata-file healthycontrols-sample-metadata.tsv \
         ;
   Qiime 2 successfully executed the cmd and reported:
     Saved Visualization to: healthycontrols-table.qzv

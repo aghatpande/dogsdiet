@@ -9,34 +9,60 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r, libraries}
+library(readr)
+library(tidyverse)
+```
+
 ## Introduction
 
-There are multiple samples (sequencing libraries) representing different types of technical controls, viz, water, DNA extraction, mock etc. The descriptions are found in the "SampleName" column of the original 'runinfo.csv" and its derivative variables 
+There are multiple samples (sequencing libraries) representing 3 different types of technical controls, viz, 2 negative controls: water and DNA extraction, and a positive control called mock. The descriptions are found in the "SampleName" column of the original 'runinfo.csv" and its derivative variables 
 
-```{r, filtering runinfo for techcontrols}
+```{r, filtering runinfo for techcontrols and sorting them separately}
 techcntrlsRuninfo <- filtered_runinfo %>% filter (grepl("DNA_extract|Mock|Water", SampleName))
+waterCntrlRuninfo <- techcntrlsRuninfo %>% filter(grepl("Water", SampleName))
+DNAxtractCntrlRuninfo <- techcntrlsRuninfo %>% filter(grepl("DNA", SampleName))
+MockCntrlsRuninfo <- techcntrlsRuninfo %>% filter(grepl("Mock", SampleName))
 ```
-
 Generating a manifest file that Qiime2 needs for importing data
 
-```{r, generating the techcontrols manifest file}
-techcntrls_manifest <- allfastqs_manifest %>% filter (sampleid %in% techcntrlsRuninfo$Run)
-techcntrls_manifest %>% write_tsv("techcntrlsManifest.tsv")
+```{r, generating 3 manifest files}
+waterCntrl_manifest <- allfastqs_manifest %>% filter (sampleid %in% waterCntrlRuninfo$Run)
+waterCntrl_manifest %>% write_tsv("waterCntrlmanifest.tsv")
+DNAxtractCntrl_manifest <- allfastqs_manifest %>% filter (sampleid %in% DNAxtractCntrlRuninfo$Run)
+DNAxtractCntrl_manifest %>% write_tsv("DNAxtractCntrlmanifest.tsv")
+mockCntrl_manifest <- allfastqs_manifest %>% filter (sampleid %in% MockCntrlsRuninfo$Run)
+mockCntrl_manifest %>% write_tsv("mockCntrlmanifest.tsv")
 ```
 
-The .tsv file needs to be a tab separated *text* file for Qiime2 to import. This was done using the foll command at commmand line:
+The .tsv file needs to be a tab separated *text* file for Qiime2 to import. This was done using the foll commands at commmand line:
 
-    cp techcntrlsManifest.tsv techcntrlsManifest
+    cp waterCntrlmanifest.tsv waterCntrlmanifest
+    cp DNAxtractCntrlmanifest.tsv DNAxtractCntrlmanifest
+    cp mockCntrlmanifest.tsv MockCntrlmanifest
   
 ## 7. importing the technical controls data into Qiime2
 
   *Note the fastq.gz files need to be in the PWD for this step*. The import was done using the foll command in the *Qiime2 conda environment*:
 
       qiime tools import --type 'SampleData[PairedEndSequencesWithQuality]'\
-      --input-path techcntrlsManifest\
-      --output-path techcntrlsdemux.qza\
+      --input-path waterCntrlmanifest\
+      --output-path waterCntrldemux.qza\
       --input-format PairedEndFastqManifestPhred33V2\
       ;
+
+    qiime tools import --type 'SampleData[PairedEndSequencesWithQuality]'\
+      --input-path DNAxtractCntrlmanifest\
+      --output-path DNAxtractCntrldemux.qza\
+      --input-format PairedEndFastqManifestPhred33V2\
+      ;
+      
+      qiime tools import --type 'SampleData[PairedEndSequencesWithQuality]'\
+      --input-path MockCntrlmanifest\
+      --output-path mockCntrldemux.qza\
+      --input-format PairedEndFastqManifestPhred33V2\
+      ;
+
 
 The important parameters are as specified above for the data in SRA, which was already demuliplexed and sorted into per sample data (likely barcodes removed). The data was fastq format with Phred scores. We *assumed* that the Phred score is Phred33 based since Illumina moved from Phred64 a while ago (per Shilpa)
 
@@ -50,15 +76,27 @@ The data was successfully imported with the foll: message from Qiime2
 
 Following along the 'moving pictures' tutorial in Qiime 2 docs, we then generate a summary of the demulitplexed data in the *Qiime2 conda environment* and the /Users/asgghar/edu/metagenomics/beiting directory:
 
-        qiime demux summarize --i-data techcntrlsdemux.qza\
-                              --o-visualization techcntrlsdemux.qzv\
+        qiime demux summarize --i-data waterCntrldemux.qza\
+                              --o-visualization waterCntrldemux.qzv\
+                              ;
+                              
+        qiime demux summarize --i-data DNAxtractCntrldemux.qza\
+                              --o-visualization DNAxtractCntrldemux.qzv\
+                              ;
+                              
+        qiime demux summarize --i-data mockCntrldemux.qza\
+                              --o-visualization mockCntrldemux.qzv\
                               ;
     
 Qiime 2 reported: Saved Visualization to: techcntrlsdemux.qzv
 
   The visualization is viewed using the command below in the same directory and environment:
 
-        qiime tools view techcntrlsdemux.qzv
+        qiime tools view waterCntrldemux.qzv
+        
+        qiime tools view waterCntrldemux.qzv
+
+        qiime tools view waterCntrldemux.qzv
 
   *The UPenn team used an average Phred score of 20 for each sample and removed sequences >256 nt and < 250 nt in length per the paper*
 
@@ -70,22 +108,72 @@ Qiime 2 reported: Saved Visualization to: techcntrlsdemux.qzv
   *DADA2-paper-nature-methods2016.pdf*. Also see *comparision-of-metagenomic-methods-2020.pdf* in same directory for a comparison of 6 diff methods and this paper
   claims the DADA2 method is one of the best at what it does. 
        
-       qiime dada2 denoise-paired \
-        --i-demultiplexed-seqs techcntrlsdemux.qza \
-        --p-trim-left-f 0 \
-        --p-trim-left-r 0 \
-        --p-trunc-len-f 250 \
-        --p-trunc-len-r 250 \
-        --o-representative-sequences techcntrls-rep-seqs.qza \
-        --o-table techcntrls-table.qza \
-        --o-denoising-stats techcntrls-stats.qza \
+       qiime dada2 denoise-paired\
+        --i-demultiplexed-seqs waterCntrldemux.qza\
+        --p-trim-left-f 0\
+        --p-trim-left-r 0\
+        --p-trunc-len-f 250\
+        --p-trunc-len-r 250\
+        --o-representative-sequences watercntrl-rep-seqs.qza\
+        --o-table watercntrl-table.qza\
+        --o-denoising-stats watercntrl-stats.qza\
         ;
         
-Qiime2 produced the output with the foll message:
-Saved FeatureTable[Frequency] to: techcntrls-table.qza
-Saved FeatureData[Sequence] to: techcntrls-rep-seqs.qza
-Saved SampleData[DADA2Stats] to: techcntrls-stats.qza
+        qiime dada2 denoise-paired\
+        --i-demultiplexed-seqs DNAxtractCntrldemux.qza\
+        --p-trim-left-f 0\
+        --p-trim-left-r 0\
+        --p-trunc-len-f 250\
+        --p-trunc-len-r 250\
+        --o-representative-sequences dnaxtractcntrl-rep-seqs.qza\
+        --o-table dnaxtractcntrl-table.qza\
+        --o-denoising-stats dnaxtractcntrl-stats.qza\
+        ;
+        
+        qiime dada2 denoise-paired\
+        --i-demultiplexed-seqs mockCntrldemux.qza\
+        --p-trim-left-f 0\
+        --p-trim-left-r 0\
+        --p-trunc-len-f 250\
+        --p-trunc-len-r 250\
+        --o-representative-sequences mockcntrl-rep-seqs.qza\
+        --o-table mockcntrl-table.qza\
+        --o-denoising-stats mockcntrl-stats.qza\
+        ;
 
+        
+Qiime2 produced the output with the foll message:
+
+
+
+## 10. Visualizing the dada2 output (TBD)
+        
+        qiime metadata tabulate \
+          --m-input-file techcntrls-stats.qza \
+          --o-visualization techcntrls-stats.qzv \
+         ;
+  
+Qiime2 produced the output with the mesg:
+not done for techcntrl data
+
+
+## 11. Next step below requires a file containing metadata about the samples
+
+  To generate 3 files called "*cntrls-sample-metadata.tsv", we will use the previously created tibbles: ...cntrlsRuninfo
+
+```{r, generate controls metadata files}
+waterCntrlmetadata <- waterCntrlRuninfo %>% mutate ("sampleid"= waterCntrlRuninfo$Run, "category" = 'water_control') %>% select ("sampleid", "spots_with_mates", "Experiment", "LibraryName","Sample", "SampleName", "category")
+waterCntrlmetadata %>% write_tsv("waterCntrl-sample-metadata.tsv")
+
+DNAxtractCntrlmetadata <- DNAxtractCntrlRuninfo %>% mutate ("sampleid"= DNAxtractCntrlRuninfo$Run, "category" = 'DNA_extraction_control') %>% select ("sampleid", "spots_with_mates", "Experiment", "LibraryName","Sample", "SampleName", "category")
+DNAxtractCntrlmetadata %>% write_tsv("DNAxtractCntrl-sample-metadata.tsv")
+
+mockCntrlmetadata <- MockCntrlsRuninfo %>% mutate ("sampleid"= MockCntrlsRuninfo$Run, "category" = 'mock_control') %>% select ("sampleid", "spots_with_mates", "Experiment", "LibraryName","Sample", "SampleName", "category")
+mockCntrlmetadata %>% write_tsv("mockCntrl-sample-metadata.tsv")
+```
+  
+  
+  
 
 
 ## Including Plots
