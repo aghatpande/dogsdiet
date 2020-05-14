@@ -102,6 +102,14 @@ Qiime 2 reported: Saved Visualization to: waterCntrldemux.qzv; Saved Visualizati
         qiime tools view waterCntrldemux.qzv
 
   *The UPenn team used an average Phred score of 20 for each sample and removed sequences >256 nt and < 250 nt in length per the paper*
+  
+  There were 14 samples labelled as water controls. The reads obtained in each sample are summarized below
+  
+```{r, water controls reads summary}
+watercntrlreads <- read_csv("waterCntrldemuxdreads.csv")
+waterCntrlsummary <- watercntrlreads %>% ggplot() + geom_histogram(mapping = aes(x = `Sequence count`, fill = `Sample name`)) + labs(x="reads",y="frequency")
+waterCntrlsummary                                                
+```
 
 
 

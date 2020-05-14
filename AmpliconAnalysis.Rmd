@@ -1,0 +1,177 @@
+---
+title: "AmpliconAnalysis"
+author: "Shilpa Rao, Ambarish Ghatpande"
+date: "5/13/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## loading required libraries
+
+```{r, libraries}
+library(readr)
+library(tidyverse)
+```
+
+
+## Separating amplicon data from WGS data for PRJNA515316 (ENTiCE study)
+
+The downloaded SRA fastq files are from the 16S rRNA sequencing experiment and the WGS (metagenomics) experiment done by the Penn researchers. Obviously, they need to be analyzed separately and hence sorted into fastqs and metadata for the two different expts.
+
+Retrieving the runinfo for the 16S rRNA sequencing
+
+```{r, retrieving amplicon runinfo}
+runinfo <- read_csv("/Users/asgghar/edu/metagenomics/beiting/runinfo.csv")
+filtered_runinfo <- runinfo %>% select("Run", "spots_with_mates", "Experiment","SampleName", "LibraryName", "LibraryStrategy", "LibrarySelection", "Model", "Sample","BioSample") # got rid of unnecessary cols like paths to sample downloads etc
+ampliconRuninfo<-filtered_runinfo %>% filter(grepl("AMPLICON", LibraryStrategy)) 
+```
+## Determining the total number of paired reads in the expt
+
+The total number of paired reads for all the amplicon samples is:
+
+```{r, total number of reads in all amplicon samples}
+SampleReadCount <- ampliconRuninfo %>% select("Run", "spots_with_mates") 
+totalPairedReads <- sum(as.numeric(SampleReadCount$spots_with_mates))
+```
+
+Per Shilpa, the capacity of a MiSeq sequencing run (flow cell?) is 14 million paired end reads (i.e. a total of 28 million reads). Given the total paired reads in this experiment is ~ 12 million, we assume that all these samples were sequenced in a single run. This is important, since we will use all these samples together for analyzing for amplicon sequence variants using the DADA2 analysis tool.
+
+## Eliminating unnecessary columns, generating a column called 'category' that labels each sample as control, mock, healthy and diseased
+Will eliminate columns that seem unnecessary. Add a category column to facilitate comparision between relavant groups of samples. There are more categories present (diet responsive, non-responsive, days into treatment etc) For now, doing this categorization, may have to depend on SampleName to classify samples later on.
+
+```{r, eliminating unnecessary columns and creating 4 categories}
+CategorizingSamples <- ampliconRuninfo %>% mutate(sampleid = Run) %>% select("sampleid", "SampleName", "spots_with_mates")
+Control <- CategorizingSamples %>%  filter (grepl ("DNA_extract|Water", SampleName)) %>% mutate (category = 'control')
+Mock <- CategorizingSamples %>%  filter (grepl ("Mock", SampleName)) %>% mutate (category = 'mockCommunity')
+Healthy <- CategorizingSamples %>%  filter (grepl ("Healthy", SampleName)) %>% mutate (category = 'healthy')
+samplesCategorized <- bind_rows(Control,Healthy,Mock,Diseased)
+```
+
+
+## Creating a manifest file and uploading the data into Qiime2
+
+```{r, reading in formatted manifest file, keeping the amplicon data only}
+allfastqs_manifest <- read_tsv("/Users/asgghar/edu/metagenomics/beiting/fastqs_manifest.tsv")
+amplicons_manifest <- allfastqs_manifest %>% filter (sampleid %in% samplesCategorized$sampleid)
+```
+
+```{r, writing the manifest file as a .tsv}
+amplicons_manifest %>% write_tsv("/Users/asgghar/edu/metagenomics/beiting/ampliconsManifest.tsv")
+```
+
+  The .tsv file needs to be a tab separated *text* file for Qiime2 to import. This was done using the foll command at commmand line:
+
+  cp ampliconsManifest.tsv ampliconsManifest
+  
+  the import was done using the foll command in the *Qiime2 conda environment*:
+
+      qiime tools import --type 'SampleData[PairedEndSequencesWithQuality]' --input-path ampliconsManifest --output-path ampliconsdemux.qza --input-format PairedEndFastqManifestPhred33V2
+
+  The important parameters are as specified above for the data in SRA, which was already demuliplexed and sorted into per sample data (likely barcodes removed). The data was fastq format with Phred scores. We *assumed* that the Phred score is Phred33 based since Illumina moved from Phred64 a while ago (per Shilpa)
+
+  The data was successfully imported with the foll: message from Qiime2
+
+  Imported ampliconsManifest as PairedEndFastqManifestPhred33V2 to ampliconsdemux.qza
+## summarizing and visualizing the imported demultiplexed reads data
+
+  Following along the 'moving pictures' tutorial in Qiime 2 docs, we then generate a summary of the demulitplexed data in the *Qiime2 conda environment* and the /Users/asgghar/edu/metagenomics/beiting directory:
+
+        qiime demux summarize --i-data ampliconsdemux.qza\
+                              --o-visualization ampliconsdemux.qzv\
+                              ;
+
+  The visualization is viewed using the command below in the same directory and environment:
+  
+  *The UPenn team used an average Phred score of 20 for each sample and removed sequences >256 nt and < 250 nt in length per the paper*
+
+## picking ASVs (amplicon sequence variants aka zero noise OTUs) using dada2 method
+  DADA2 is a pipeline for detecting and correcting (correcting sequencing, PCR errors, removing PCR generated chimeric sequences where possible) Illumina amplicon sequence data. As implemented in the q2-dada2 plugin, this quality control process will additionally filter any phiX reads (commonly present in marker gene Illumina sequence data) that are identified in the sequencing data, and will filter chimeric sequences. It will also merge paired reads. For details see foll references in the ~/metagenomics subdirectory:
+  
+  *DADA2-paper-nature-methods2016.pdf*. Also see *comparision-of-metagenomic-methods-2020.pdf* in same directory for a comparison of 6 diff methods and this paper
+  claims the DADA2 method is one of the best at what it does. 
+       
+       qiime dada2 denoise-paired \
+        --i-demultiplexed-seqs ampliconsdemux.qza \
+        --p-trim-left-f 5 \
+        --p-trim-left-r 5 \
+        --p-trunc-len-f 190 \
+        --p-trunc-len-r 130 \
+        --o-representative-sequences amplicons-rep-seqs-dada2.qza \
+        --o-table amplicons-table-dada2.qza \
+        --o-denoising-stats amplicons-stats-dada2.qza \
+        ;
+        
+  The trimming of reads is an important user adjustable parameter. Based on the visualization of the Phred scores of the reads, the first 5 nts in both forward and reverse reads appeared distinct and so were trimmed. The len parameter was used to trim for reads whose 25th percentile Phred score was ~ 30, this resulted in using first 190 nts in the forward reads and 130 nts from the reverse reads
+  
+  Qiime2 produced the output with the foll message:
+  Saved FeatureTable[Frequency] to: amplicons-table-dada2.qza
+Saved FeatureData[Sequence] to: amplicons-rep-seqs-dada2.qza
+Saved SampleData[DADA2Stats] to: amplicons-stats-dada2.qza
+(qiime2-2020.2) 
+
+
+## Visualizing the dada2 output
+        
+        qiime metadata tabulate \
+          --m-input-file amplicons-stats-dada2.qza \
+          --o-visualization amplicons-stats-dada2.qzv \
+         ;
+  
+  Qiime2 produced the output with the mesg:
+  Saved Visualization to: amplicons-stats-dada2.qzv
+  
+A majority of samples had a majority of reads pass the filtering, denoising,merging and chimera removal as can be seen below:
+
+```{r, visualizing the dada2 output}
+ampliconStats <- read_tsv("/Users/asgghar/edu/metagenomics/beiting/ampliconstatsdada2.tsv", col_names = c("sampleid","input", "filtered", "percentFilterered", "denoised", "merged", "percentMerged", "non-chimeric","percentNon-chimeric"),skip = 2)
+dada2statplots <- ggplot(data = ampliconStats) + geom_histogram (mapping = aes(x = input, alpha = 0.1)) + geom_histogram (mapping = aes(x = filtered, alpha = 0.1))
+dada2statplots
+```
+
+
+## Creating a metadata file with information about the samples
+
+  To generate a file called "ENTiCEampliconMetadata.tsv", we will use the previously created tibble: samplesCategorized
+
+```{r}
+samplesCategorized %>% write_tsv("/Users/asgghar/edu/metagenomics/beiting/ENTiCEampliconMetadata.tsv")
+```
+  
+  
+  
+
+## 12. Visualizing summary of featuretable and feature ID sequences
+### Generating the featuretable 
+
+      qiime feature-table summarize \
+        --i-table amplicons-table-dada2.qza \
+        --o-visualization EnticeAmpliconsFeatureTable.qzv \
+        --m-sample-metadata-file ENTiCEampliconMetadata.tsv \
+        ;
+        
+  Qiime 2 successfully executed the cmd and reported:
+    Saved Visualization to: EnticeAmpliconsFeatureTable.qzv
+    
+  This table shows 267 samples contain 2779 features with total frequency of 9,829,398 reads or 41.4% of total input reads. See calculation below. 
+
+```{r, percent reads retained}
+percentReadsRetained <- (9829398 / (totalPairedReads*2))*100
+```
+  
+  
+Median frequency is 29,383 reads per sample. Of the 2779 features ...
+  Given this distribution: can a single bacterial cell ingested incidentally by the subject show up in the poop sequencing? In general, what is the sensitivity of the poop sequencing? How can we tell established colonies in the gut versus transient population? 
+
+### generating reference sequences of each feature
+
+      qiime feature-table tabulate-seqs \
+        --i-data amplicons-rep-seqs-dada2.qza \
+        --o-visualization EnticeAmpliconsRepSeq.qzv \
+        ;
+  Qiime2 successfully executed with mesg:
+  Saved Visualization to: EnticeAmpliconsRepSeq.qzv
+  
+  The sequences in this visualization can be aligned to the Blast nt database to see which species / genus / phylum it represents.
