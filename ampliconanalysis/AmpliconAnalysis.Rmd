@@ -1,0 +1,315 @@
+---
+title: "AmpliconAnalysis"
+author: "Shilpa Rao, Ambarish Ghatpande"
+date: "5/13/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## loading required libraries
+
+```{r, libraries}
+library(readr)
+library(tidyverse)
+```
+
+
+## Separating amplicon data from WGS data for PRJNA515316 (ENTiCE study)
+
+The downloaded SRA fastq files are from the 16S rRNA sequencing experiment and the WGS (metagenomics) experiment done by the Penn researchers. Obviously, they need to be analyzed separately and hence sorted into fastqs and metadata for the two different expts.
+
+Retrieving the runinfo for the 16S rRNA sequencing
+
+```{r, retrieving amplicon runinfo}
+runinfo <- read_csv("/Users/asgghar/edu/metagenomics/beiting/runinfo.csv")
+filtered_runinfo <- runinfo %>% select("Run", "spots_with_mates", "Experiment","SampleName", "LibraryName", "LibraryStrategy", "LibrarySelection", "Model", "Sample","BioSample") # got rid of unnecessary cols like paths to sample downloads etc
+ampliconRuninfo<-filtered_runinfo %>% filter(grepl("AMPLICON", LibraryStrategy)) 
+```
+## Determining the total number of paired reads in the expt
+
+The total number of paired reads for all the amplicon samples is:
+
+```{r, total number of reads in all amplicon samples}
+SampleReadCount <- ampliconRuninfo %>% select("Run", "spots_with_mates") 
+totalPairedReads <- sum(as.numeric(SampleReadCount$spots_with_mates))
+```
+
+Per Shilpa, the capacity of a MiSeq sequencing run (flow cell?) is 14 million paired end reads (i.e. a total of 28 million reads). Given the total paired reads in this experiment is ~ 12 million, we assume that all these samples were sequenced in a single run. This is important, since we will use all these samples together for analyzing for amplicon sequence variants using the DADA2 analysis tool.
+
+## Eliminating unnecessary columns, generating a column called 'category' that labels each sample as control, mock, healthy and diseased
+Will eliminate columns that seem unnecessary. Add a category column to facilitate comparision between relavant groups of samples. There are more categories present (diet responsive, non-responsive, days into treatment etc) For now, doing this categorization, may have to depend on SampleName to classify samples later on.
+
+```{r, eliminating unnecessary columns and creating 4 categories}
+CategorizingSamples <- ampliconRuninfo %>% mutate(sampleid = Run) %>% select("sampleid", "SampleName", "spots_with_mates")
+Control <- CategorizingSamples %>%  filter (grepl ("DNA_extract|Water", SampleName)) %>% mutate (category = 'control')
+Mock <- CategorizingSamples %>%  filter (grepl ("Mock", SampleName)) %>% mutate (category = 'mockCommunity')
+Healthy <- CategorizingSamples %>%  filter (grepl ("Healthy", SampleName)) %>% mutate (category = 'healthy')
+Diseased <- CategorizingSamples %>% filter(grepl("Day", SampleName)) %>% mutate(category = 'diseased')
+samplesCategorized <- bind_rows(Control,Healthy,Mock,Diseased)
+```
+
+## Creating a manifest file and uploading the data into Qiime2
+
+```{r, reading in formatted manifest file, keeping the amplicon data only}
+allfastqs_manifest <- read_tsv("/Users/asgghar/edu/metagenomics/beiting/fastqs_manifest.tsv")
+amplicons_manifest <- allfastqs_manifest %>% filter (sampleid %in% samplesCategorized$sampleid)
+```
+
+```{r, writing the manifest file as a .tsv}
+amplicons_manifest %>% write_tsv("/Users/asgghar/edu/metagenomics/beiting/ampliconsManifest.tsv")
+```
+
+  The .tsv file needs to be a tab separated *text* file for Qiime2 to import. This was done using the foll command at commmand line:
+
+  cp ampliconsManifest.tsv ampliconsManifest
+  
+  the import was done using the foll command in the *Qiime2 conda environment*:
+
+      qiime tools import --type 'SampleData[PairedEndSequencesWithQuality]' --input-path ampliconsManifest --output-path ampliconsdemux.qza --input-format PairedEndFastqManifestPhred33V2
+
+  The important parameters are as specified above for the data in SRA, which was already demuliplexed and sorted into per sample data (likely barcodes removed). The data was fastq format with Phred scores. We *assumed* that the Phred score is Phred33 based since Illumina moved from Phred64 a while ago (per Shilpa)
+
+  The data was successfully imported with the foll: message from Qiime2
+
+  Imported ampliconsManifest as PairedEndFastqManifestPhred33V2 to ampliconsdemux.qza
+## summarizing and visualizing the imported demultiplexed reads data
+
+  Following along the 'moving pictures' tutorial in Qiime 2 docs, we then generate a summary of the demulitplexed data in the *Qiime2 conda environment* and the /Users/asgghar/edu/metagenomics/beiting directory:
+
+        qiime demux summarize --i-data ampliconsdemux.qza\
+                              --o-visualization ampliconsdemux.qzv\
+                              ;
+
+  The visualization is viewed using the command below in the same directory and environment:
+  
+  *The UPenn team used an average Phred score of 20 for each sample and removed sequences >256 nt and < 250 nt in length per the paper*
+
+## picking ASVs (amplicon sequence variants aka zero noise OTUs) using dada2 method
+  
+  DADA2 is a pipeline for detecting and correcting (correcting sequencing, PCR errors, removing PCR generated chimeric sequences where possible) Illumina amplicon sequence data. As implemented in the q2-dada2 plugin, this quality control process will additionally filter any phiX reads (commonly present in marker gene Illumina sequence data) that are identified in the sequencing data, and will filter chimeric sequences. It will also merge paired reads. For details see foll references in the ~/metagenomics subdirectory:
+  
+  *DADA2-paper-nature-methods2016.pdf*. Also see *comparision-of-metagenomic-methods-2020.pdf* in same directory for a comparison of 6 diff methods and this paper
+  claims the DADA2 method is one of the best at what it does. 
+       
+       qiime dada2 denoise-paired \
+        --i-demultiplexed-seqs ampliconsdemux.qza \
+        --p-trim-left-f 5 \
+        --p-trim-left-r 5 \
+        --p-trunc-len-f 190 \
+        --p-trunc-len-r 130 \
+        --o-representative-sequences amplicons-rep-seqs-dada2.qza \
+        --o-table amplicons-table-dada2.qza \
+        --o-denoising-stats amplicons-stats-dada2.qza \
+        ;
+        
+  The trimming of reads is an important user adjustable parameter. Based on the visualization of the Phred scores of the reads, the first 5 nts in both forward and reverse reads appeared distinct and so were trimmed. The len parameter was used to trim for reads whose 25th percentile Phred score was ~ 30, this resulted in using first 190 nts in the forward reads and 130 nts from the reverse reads
+  
+  Qiime2 produced the output with the foll message:
+  Saved FeatureTable[Frequency] to: amplicons-table-dada2.qza
+Saved FeatureData[Sequence] to: amplicons-rep-seqs-dada2.qza
+Saved SampleData[DADA2Stats] to: amplicons-stats-dada2.qza
+(qiime2-2020.2) 
+
+
+## Visualizing the dada2 output
+        
+        qiime metadata tabulate \
+          --m-input-file amplicons-stats-dada2.qza \
+          --o-visualization amplicons-stats-dada2.qzv \
+         ;
+  
+  Qiime2 produced the output with the mesg:
+  Saved Visualization to: amplicons-stats-dada2.qzv
+  
+A majority of samples had a majority of reads pass the filtering, denoising,merging and chimera removal as can be seen below:
+
+```{r, visualizing the dada2 output}
+ampliconStats <- read_tsv("/Users/asgghar/edu/metagenomics/beiting/ampliconstatsdada2.tsv", col_names = c("sampleid","input", "filtered", "percentFilterered", "denoised", "merged", "percentMerged", "non-chimeric","percentNon-chimeric"),skip = 2)
+dada2statplots <- ggplot(data = ampliconStats) + geom_histogram (mapping = aes(x = input, alpha = 0.1)) + geom_histogram (mapping = aes(x = filtered, alpha = 0.1))
+dada2statplots
+```
+
+## Creating a metadata files with information about the samples after categorizing them
+
+### additional subcategories to include in the analysis
+
+The 'diseased' category can be further split into samples at various days into treatment, samples from diet responsive and unresponsive dogs, samples from the same dog at various time points into treatment. 
+
+The experimental arm of the study included many (29 per paper) dogs. Of these, some dogs responded and others didn't repond well to diet intervention. In order to understand if these dogs with clinical IBD had significantly different microbiomes before the dietary manipulation we need to compare their microbiomes to those with the healthy control dogs. 
+
+Identifying the various timepoints and dogs in the experiment
+
+```{r}
+days <- CategorizingSamples %>% filter(grepl("Day", SampleName)) %>% separate(SampleName,c("Name","dogID", "day","libID")) %>% select(day)
+uniqDays <- unique(days)
+dogIDs <- CategorizingSamples %>% filter(grepl("Day", SampleName)) %>% separate(SampleName,c("Name","dogID", "day","libID")) %>% select(dogID)
+uniqdogIDs <- unique(dogIDs)
+```
+
+Creating sub-categories
+
+```{r, creating sub-categories}
+waterControl <- CategorizingSamples %>%  filter (grepl ("Water", SampleName)) %>% mutate (category = 'water_control')
+dnaXtractControl <- CategorizingSamples %>%  filter (grepl ("DNA", SampleName)) %>% mutate (category = 'DNA_extraction_control')
+Mock <- CategorizingSamples %>%  filter (grepl ("Mock", SampleName)) %>% mutate (category = 'mockCommunity')
+Healthy <- CategorizingSamples %>%  filter (grepl ("Healthy", SampleName)) %>% mutate (category = 'healthy')
+Diseased <- CategorizingSamples %>% filter(grepl("Day", SampleName)) %>% mutate(category = 'diseased')
+day0<- CategorizingSamples %>% filter(grepl("Day0", SampleName)) %>% mutate(category = 'day0CE')
+day14<- CategorizingSamples %>% filter(grepl("Day14", SampleName)) %>% mutate(category = 'day14CE')
+day28<- CategorizingSamples %>% filter(grepl("Day28", SampleName)) %>% mutate(category = 'day28CE')
+day35<- CategorizingSamples %>% filter(grepl("Day35", SampleName)) %>% mutate(category = 'day35CE')
+day42<- CategorizingSamples %>% filter(grepl("Day42", SampleName)) %>% mutate(category = 'day42CE')
+day56<- CategorizingSamples %>% filter(grepl("Day56", SampleName)) %>% mutate(category = 'day56CE')
+dogIDs <- CategorizingSamples %>% filter(grepl)
+samplesCategorizedSub1 <- bind_rows(waterControl,dnaXtractControl,Healthy,Mock,day0,day14,day28,day35,day42,day56)
+```
+  
+To generate a file called "ENTiCEampliconMetadata.tsv" or "ENTiCEampliconsub1Metadata.tsv", we will use the previously created tibbles: samplesCategorized or samplesCategorizedsub1 respectively
+
+```{r}
+# samplesCategorized %>% write_tsv("/Users/asgghar/edu/metagenomics/beiting/ENTiCEampliconMetadata.tsv") # remove starting hash if needed
+samplesCategorizedSub1 %>% write_tsv("/Users/asgghar/edu/metagenomics/beiting/ENTiCEampliconsub1Metadata.tsv")
+```
+
+## Visualizing summary of featuretable and feature ID sequences
+### Generating the featuretable (done only with 4 categories, can be done with the 'sub1' metadata) 
+
+      qiime feature-table summarize \
+        --i-table amplicons-table-dada2.qza \
+        --o-visualization EnticeAmpliconsFeatureTable.qzv \
+        --m-sample-metadata-file ENTiCEampliconMetadata.tsv \
+        ;
+        
+  Qiime 2 successfully executed the cmd and reported:
+    Saved Visualization to: EnticeAmpliconsFeatureTable.qzv
+    
+  This table shows 267 samples contain 2779 features with total frequency of 9,829,398 reads or 41.4% of total input reads. See calculation below. 
+
+```{r, percent reads retained}
+percentReadsRetained <- (9829398 / (totalPairedReads*2))*100
+```
+  
+  
+Median frequency is 29,383 reads per sample. Of the 2779 features ...
+  Given this distribution: can a single bacterial cell ingested incidentally by the subject show up in the poop sequencing? In general, what is the sensitivity of the poop sequencing? How can we tell established colonies in the gut versus transient population? 
+
+### generating reference sequences of each feature
+
+      qiime feature-table tabulate-seqs \
+        --i-data amplicons-rep-seqs-dada2.qza \
+        --o-visualization EnticeAmpliconsRepSeq.qzv \
+        ;
+  Qiime2 successfully executed with mesg:
+  Saved Visualization to: EnticeAmpliconsRepSeq.qzv
+  
+  The sequences in this visualization can be aligned to the Blast nt database to see which species / genus / phylum it represents.
+## generating tree for phylogenetic diversity analysis
+
+    qiime phylogeny align-to-tree-mafft-fasttree \
+     --i-sequences amplicons-rep-seqs-dada2.qza \
+     --o-alignment EnticeAmplicons-aligned-rep-seqs.qza \
+     --o-masked-alignment EnticeAmplicons-masked-aligned-rep-seqs.qza \
+     --o-tree EnticeAmplicons-unrooted-tree.qza \
+     --o-rooted-tree EnticeAmplicons-rooted-tree.qza \
+     ;
+     
+Qiime2 successfully executed with the mesg:
+Saved FeatureData[AlignedSequence] to: EnticeAmplicons-aligned-rep-seqs.qza
+Saved FeatureData[AlignedSequence] to: EnticeAmplicons-masked-aligned-rep-seqs.qza
+Saved Phylogeny[Unrooted] to: EnticeAmplicons-unrooted-tree.qza
+Saved Phylogeny[Rooted] to: EnticeAmplicons-rooted-tree.qza
+  
+  
+
+  
+## Alpha and beta diversity analysis
+
+### About alpha & beta diversity analysis from the moving pictures tutorial in Qiime2 docs (5/6/20)
+    We’ll first apply the core-metrics-phylogenetic method, which rarefies a FeatureTable[Frequency] to a user-specified depth, computes several alpha and beta diversity metrics, and generates principle coordinates analysis (PCoA) plots using Emperor for each of the beta diversity metrics. The metrics computed by default are:
+
+  Alpha diversity
+
+  Shannon’s diversity index (a quantitative measure of community richness)
+
+  Observed OTUs (a qualitative measure of community richness)
+
+  Faith’s Phylogenetic Diversity (a qualitiative measure of community richness that incorporates phylogenetic relationships between the features)
+
+  Evenness (or Pielou’s Evenness; a measure of community evenness)
+
+  Beta diversity
+
+  Jaccard distance (a qualitative measure of community dissimilarity)
+
+  Bray-Curtis distance (a quantitative measure of community dissimilarity)
+
+  unweighted UniFrac distance (a qualitative measure of community dissimilarity that incorporates phylogenetic relationships between the features)
+
+  weighted UniFrac distance (a quantitative measure of community dissimilarity that incorporates phylogenetic relationships between the features)
+  
+  An important parameter that needs to be provided to this script is --p-sampling-depth, which is the even sampling (i.e. rarefaction) depth. Because most diversity metrics are sensitive to different sampling depths across different samples, this script will randomly subsample the counts from each sample to the value provided for this parameter. For example, if you provide --p-sampling-depth 500, this step will subsample the counts in each sample without replacement so that each sample in the resulting table has a total count of 500. If the total count for any sample(s) are smaller than this value, those samples will be dropped from the diversity analysis. Choosing this value is tricky. We recommend making your choice by reviewing the information presented in the table.qzv file that was created above. Choose a value that is as high as possible (so you retain more sequences per sample) while excluding as few samples as possible.
+    
+alpha / beta diversity with only 4 categories 
+
+    qiime diversity core-metrics-phylogenetic \
+     --i-phylogeny EnticeAmplicons-rooted-tree.qza \
+     --i-table amplicons-table-dada2.qza \
+     --p-sampling-depth 13286 \
+     --m-metadata-file ENTiCEampliconMetadata.tsv \
+     --output-dir Enticeamplicons-core-metrics-results \
+     ;
+     
+   * The starting pt for the sampling depth parameter was 10600 from Beiting paper, we inc. sampling depth until we had 25% of features (~ 2.5 million) in 70% (187) samples.
+   
+   Qiime2 executed the command with mesg:
+   
+Saved FeatureTable[Frequency] to: Enticeamplicons-core-metrics-results/rarefied_table.qza
+Saved SampleData[AlphaDiversity] % Properties('phylogenetic') to: Enticeamplicons-core-metrics-results/faith_pd_vector.qza
+Saved SampleData[AlphaDiversity] to: Enticeamplicons-core-metrics-results/observed_otus_vector.qza
+Saved SampleData[AlphaDiversity] to: Enticeamplicons-core-metrics-results/shannon_vector.qza
+Saved SampleData[AlphaDiversity] to: Enticeamplicons-core-metrics-results/evenness_vector.qza
+Saved DistanceMatrix % Properties('phylogenetic') to: Enticeamplicons-core-metrics-results/unweighted_unifrac_distance_matrix.qza
+Saved DistanceMatrix % Properties('phylogenetic') to: Enticeamplicons-core-metrics-results/weighted_unifrac_distance_matrix.qza
+Saved DistanceMatrix to: Enticeamplicons-core-metrics-results/jaccard_distance_matrix.qza
+Saved DistanceMatrix to: Enticeamplicons-core-metrics-results/bray_curtis_distance_matrix.qza
+Saved PCoAResults to: Enticeamplicons-core-metrics-results/unweighted_unifrac_pcoa_results.qza
+Saved PCoAResults to: Enticeamplicons-core-metrics-results/weighted_unifrac_pcoa_results.qza
+Saved PCoAResults to: Enticeamplicons-core-metrics-results/jaccard_pcoa_results.qza
+Saved PCoAResults to: Enticeamplicons-core-metrics-results/bray_curtis_pcoa_results.qza
+Saved Visualization to: Enticeamplicons-core-metrics-results/unweighted_unifrac_emperor.qzv
+Saved Visualization to: Enticeamplicons-core-metrics-results/weighted_unifrac_emperor.qzv
+Saved Visualization to: Enticeamplicons-core-metrics-results/jaccard_emperor.qzv
+Saved Visualization to: Enticeamplicons-core-metrics-results/bray_curtis_emperor.qzv
+   
+
+Repeating the alpha / beta diversity 'core metrics' analysis with the additional sub-categories generated:
+
+    qiime diversity core-metrics-phylogenetic \
+        --i-phylogeny EnticeAmplicons-rooted-tree.qza \
+        --i-table amplicons-table-dada2.qza \
+        --p-sampling-depth 13286 \
+        --m-metadata-file ENTiCEampliconsub1Metadata.tsv \
+        --output-dir Enticeamplicons-sub1-core-metrics-results \
+        ;
+        
+Qiime executed with mesg:
+Saved FeatureTable[Frequency] to: Enticeamplicons-sub1-core-metrics-results/rarefied_table.qza
+Saved SampleData[AlphaDiversity] % Properties('phylogenetic') to: Enticeamplicons-sub1-core-metrics-results/faith_pd_vector.qza
+Saved SampleData[AlphaDiversity] to: Enticeamplicons-sub1-core-metrics-results/observed_otus_vector.qza
+Saved SampleData[AlphaDiversity] to: Enticeamplicons-sub1-core-metrics-results/shannon_vector.qza
+Saved SampleData[AlphaDiversity] to: Enticeamplicons-sub1-core-metrics-results/evenness_vector.qza
+Saved DistanceMatrix % Properties('phylogenetic') to: Enticeamplicons-sub1-core-metrics-results/unweighted_unifrac_distance_matrix.qza
+Saved DistanceMatrix % Properties('phylogenetic') to: Enticeamplicons-sub1-core-metrics-results/weighted_unifrac_distance_matrix.qza
+Saved DistanceMatrix to: Enticeamplicons-sub1-core-metrics-results/jaccard_distance_matrix.qza
+Saved DistanceMatrix to: Enticeamplicons-sub1-core-metrics-results/bray_curtis_distance_matrix.qza
+Saved PCoAResults to: Enticeamplicons-sub1-core-metrics-results/unweighted_unifrac_pcoa_results.qza
+Saved PCoAResults to: Enticeamplicons-sub1-core-metrics-results/weighted_unifrac_pcoa_results.qza
+Saved PCoAResults to: Enticeamplicons-sub1-core-metrics-results/jaccard_pcoa_results.qza
+Saved PCoAResults to: Enticeamplicons-sub1-core-metrics-results/bray_curtis_pcoa_results.qza
+Saved Visualization to: Enticeamplicons-sub1-core-metrics-results/unweighted_unifrac_emperor.qzv
+Saved Visualization to: Enticeamplicons-sub1-core-metrics-results/weighted_unifrac_emperor.qzv
+Saved Visualization to: Enticeamplicons-sub1-core-metrics-results/jaccard_emperor.qzv
+Saved Visualization to: Enticeamplicons-sub1-core-metrics-results/bray_curtis_emperor.qzv

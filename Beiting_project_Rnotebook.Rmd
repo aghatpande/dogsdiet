@@ -271,7 +271,7 @@ Qiime2 successfully executed with the mesg:
    * The starting pt for the sampling depth parameter was 10600 from Beiting paper, we inc. sampling depth until one more sample dropped out. This way, we could retain the same number of samples (24) as in Beiting paper but we maximized the sampling depth of reads
    
    
-## 15. TBD (05062020-1000hrs): need to analyze all categories (controls, healthy, diseased together for diversity analysis)
+## 15. TBD (05062020-1000hrs): need to analyze all categories (controls, healthy, diseased together for diversity analysis) -done 5/14/20!
     
 ------------------------------------------------------------------------------------------------------------------------------------------
 ## R Notebook general tips
