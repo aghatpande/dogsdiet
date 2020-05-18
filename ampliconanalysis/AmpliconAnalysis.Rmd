@@ -136,7 +136,7 @@ dada2statplots
 
 ### additional subcategories to include in the analysis
 
-The 'diseased' category can be further split into samples at various days into treatment, samples from diet responsive and unresponsive dogs, samples from the same dog at various time points into treatment. 
+The 'diseased' category can be further split into samples at various days into treatment which would allow for tracking individual dogs through the treatment time course. 
 
 The experimental arm of the study included many (29 per paper) dogs. Of these, some dogs responded and others didn't repond well to diet intervention. In order to understand if these dogs with clinical IBD had significantly different microbiomes before the dietary manipulation we need to compare their microbiomes to those with the healthy control dogs. 
 
@@ -151,27 +151,84 @@ uniqdogIDs <- unique(dogIDs)
 
 Creating sub-categories
 
-```{r, creating sub-categories}
-waterControl <- CategorizingSamples %>%  filter (grepl ("Water", SampleName)) %>% mutate (category = 'water_control')
-dnaXtractControl <- CategorizingSamples %>%  filter (grepl ("DNA", SampleName)) %>% mutate (category = 'DNA_extraction_control')
-Mock <- CategorizingSamples %>%  filter (grepl ("Mock", SampleName)) %>% mutate (category = 'mockCommunity')
-Healthy <- CategorizingSamples %>%  filter (grepl ("Healthy", SampleName)) %>% mutate (category = 'healthy')
-Diseased <- CategorizingSamples %>% filter(grepl("Day", SampleName)) %>% mutate(category = 'diseased')
-day0<- CategorizingSamples %>% filter(grepl("Day0", SampleName)) %>% mutate(category = 'day0CE')
-day14<- CategorizingSamples %>% filter(grepl("Day14", SampleName)) %>% mutate(category = 'day14CE')
-day28<- CategorizingSamples %>% filter(grepl("Day28", SampleName)) %>% mutate(category = 'day28CE')
-day35<- CategorizingSamples %>% filter(grepl("Day35", SampleName)) %>% mutate(category = 'day35CE')
-day42<- CategorizingSamples %>% filter(grepl("Day42", SampleName)) %>% mutate(category = 'day42CE')
-day56<- CategorizingSamples %>% filter(grepl("Day56", SampleName)) %>% mutate(category = 'day56CE')
-dogIDs <- CategorizingSamples %>% filter(grepl)
-samplesCategorizedSub1 <- bind_rows(waterControl,dnaXtractControl,Healthy,Mock,day0,day14,day28,day35,day42,day56)
+The code below uses a custom function to categorize the data. This function currently goes only part of the way towards the *DRY* (Do not Repeat Yourself) principle. It needs to be extended to using the purrr library and the '...' function. See comment at end of the 'categorizeSample.R' script.
+
+```{r, creating sub-categories, using custom function 'categorizeSample'}
+waterControl <- categorizeSample(CategorizingSamples,SampleName,Water)
+dnaXtractControl <- categorizeSample(CategorizingSamples,SampleName,DNA)
+Mock <- categorizeSample(CategorizingSamples,SampleName,Mock)
+Healthy <- categorizeSample(CategorizingSamples,SampleName,Healthy)
+CEday0<- categorizeSample(CategorizingSamples,SampleName,Day0)
+CEday14<- categorizeSample(CategorizingSamples,SampleName,Day14)
+CEday28<- categorizeSample(CategorizingSamples,SampleName,Day28)
+CEday35<- categorizeSample(CategorizingSamples,SampleName,Day35)
+CEday42<- categorizeSample(CategorizingSamples,SampleName,Day42)
+CEday56<- categorizeSample(CategorizingSamples,SampleName,Day56)
+
+# sub-categorizing the 'Diseased' dataframe further according to dog IDs
+Diseased <- categorizeSample(CategorizingSamples,SampleName,Day) %>% mutate (category = "CE")
+CEdog01 <- categorizeSample(Diseased,SampleName,C166_01)
+CEdog03 <- categorizeSample(Diseased,SampleName,C166_03)
+CEdog05 <- categorizeSample(Diseased,SampleName,C166_05)
+CEdog06 <- categorizeSample(Diseased,SampleName,C166_06)
+CEdog08 <- categorizeSample(Diseased,SampleName,C166_08)
+CEdog09 <- categorizeSample(Diseased,SampleName,C166_09)
+CEdog10 <- categorizeSample(Diseased,SampleName,C166_10)
+CEdog11 <- categorizeSample(Diseased,SampleName,C166_11)
+CEdog12 <- categorizeSample(Diseased,SampleName,C166_12)
+CEdog13 <- categorizeSample(Diseased,SampleName,C166_13)
+CEdog18 <- categorizeSample(Diseased,SampleName,C166_18)
+CEdog20 <- categorizeSample(Diseased,SampleName,C166_20)
+CEdog21 <- categorizeSample(Diseased,SampleName,C166_21)
+CEdog22 <- categorizeSample(Diseased,SampleName,C166_22)
+CEdog23 <- categorizeSample(Diseased,SampleName,C166_23)
+CEdog24 <- categorizeSample(Diseased,SampleName,C166_24)
+CEdog25 <- categorizeSample(Diseased,SampleName,C166_25)
+CEdog26 <- categorizeSample(Diseased,SampleName,C166_26)
+CEdog27 <- categorizeSample(Diseased,SampleName,C166_27)
+CEdog30 <- categorizeSample(Diseased,SampleName,C166_30)
+CEdog31 <- categorizeSample(Diseased,SampleName,C166_31)
+CEdog32 <- categorizeSample(Diseased,SampleName,C166_32)
+CEdog33 <- categorizeSample(Diseased,SampleName,C166_33)
+CEdog34 <- categorizeSample(Diseased,SampleName,C166_34)
+CEdog35 <- categorizeSample(Diseased,SampleName,C166_35)
+CEdog36 <- categorizeSample(Diseased,SampleName,C166_36)
+CEdog39 <- categorizeSample(Diseased,SampleName,C166_39)
+CEdog40 <- categorizeSample(Diseased,SampleName,C166_40)
+CEdog42 <- categorizeSample(Diseased,SampleName,C166_42)
+
+# Currently the metadata file generated with overlapping sample IDs doesnt work in Qiime2. It requires unique sample IDs only 
+# samplesCategorizedSub1 <- bind_rows(waterControl,dnaXtractControl,Healthy,Mock,Diseased,CEday0,CEday14,CEday28,CEday35,CEday42,CEday56,CEdog01,CEdog03,CEdog05,CEdog06,CEdog08,CEdog09,CEdog10,CEdog11,CEdog12,CEdog13,CEdog18,CEdog20,CEdog21,CEdog22,CEdog23,CEdog24,CEdog25,CEdog26,CEdog27,CEdog30,CEdog31,CEdog32,CEdog33,CEdog34,CEdog35,CEdog36,CEdog39,CEdog40,CEdog42)
+
+samplesCategorizedSub1 <- bind_rows(waterControl,dnaXtractControl,Healthy,Mock,CEday0,CEday14,CEday28,CEday35,CEday42,CEday56)
+
+# generating a second metadata file with dog specific metadata to allow for following individual dogs
+samplesCategorizedSub2 <-
+bind_rows(waterControl,dnaXtractControl,Healthy,Mock,CEdog01,CEdog03,CEdog05,CEdog06,CEdog08,CEdog09,CEdog10,CEdog11,CEdog12,CEdog13,CEdog18,CEdog20,CEdog21,CEdog22,CEdog23,CEdog24,CEdog25,CEdog26,CEdog27,CEdog30,CEdog31,CEdog32,CEdog33,CEdog34,CEdog35,CEdog36,CEdog39,CEdog40,CEdog42)
 ```
-  
-To generate a file called "ENTiCEampliconMetadata.tsv" or "ENTiCEampliconsub1Metadata.tsv", we will use the previously created tibbles: samplesCategorized or samplesCategorizedsub1 respectively
+Ideally need the dat classified acccording to multiple, overlapping labels. Hence need to join sub1 and sub2
+
+```{r joining sub1 and sub2}
+# converting the 'category' column to dogID in samplesCategorizedSub2
+samplesCategorizedSub2 <- rename(samplesCategorizedSub2, dogID = category)
+samplesCategorizedSubtemp <- samplesCategorizedSub2 %>% select(sampleid,dogID)
+# joining samplesCategorizedSub1 and samplesCategorizedSub2/temp
+samplesCategorizedAll <- left_join(samplesCategorizedSub1,samplesCategorizedSubtemp,by = "sampleid")
+```
+
+To generate a file called "ENTiCEampliconMetadata.tsv" or "ENTiCEampliconsub1Metadata.tsv", or "ENTiCEampliconsub2Metadata.tsv" or "ENTiCEampliconsub2Metadata.tsv" we will use the previously created tibbles: samplesCategorized or samplesCategorizedsub1,...sub2,...All respectively
 
 ```{r}
 # samplesCategorized %>% write_tsv("/Users/asgghar/edu/metagenomics/beiting/ENTiCEampliconMetadata.tsv") # remove starting hash if needed
+
+# Currently the metadata file generated with overlapping sample IDs doesnt work in Qiime2. It requires unique sample IDs only
+
 samplesCategorizedSub1 %>% write_tsv("/Users/asgghar/edu/metagenomics/beiting/ENTiCEampliconsub1Metadata.tsv")
+
+samplesCategorizedSub2 %>% write_tsv("/Users/asgghar/edu/metagenomics/beiting/ENTiCEampliconsub2Metadata.tsv")
+
+samplesCategorizedAll %>% 
+write_tsv("/Users/asgghar/edu/metagenomics/beiting/ENTiCEampliconsAllMetadata.tsv")
 ```
 
 ## Visualizing summary of featuretable and feature ID sequences
@@ -226,7 +283,6 @@ Saved Phylogeny[Rooted] to: EnticeAmplicons-rooted-tree.qza
 
   
 ## Alpha and beta diversity analysis
-
 ### About alpha & beta diversity analysis from the moving pictures tutorial in Qiime2 docs (5/6/20)
     We’ll first apply the core-metrics-phylogenetic method, which rarefies a FeatureTable[Frequency] to a user-specified depth, computes several alpha and beta diversity metrics, and generates principle coordinates analysis (PCoA) plots using Emperor for each of the beta diversity metrics. The metrics computed by default are:
 
@@ -313,3 +369,63 @@ Saved Visualization to: Enticeamplicons-sub1-core-metrics-results/unweighted_uni
 Saved Visualization to: Enticeamplicons-sub1-core-metrics-results/weighted_unifrac_emperor.qzv
 Saved Visualization to: Enticeamplicons-sub1-core-metrics-results/jaccard_emperor.qzv
 Saved Visualization to: Enticeamplicons-sub1-core-metrics-results/bray_curtis_emperor.qzv
+
+Repeating the alpha / beta diversity 'core metrics' analysis to follow individual dogs through treatment time course
+
+    qiime diversity core-metrics-phylogenetic \
+        --i-phylogeny EnticeAmplicons-rooted-tree.qza \
+        --i-table amplicons-table-dada2.qza \
+        --p-sampling-depth 13286 \
+        --m-metadata-file ENTiCEampliconsub2Metadata.tsv \
+        --output-dir Enticeamplicons-sub2-core-metrics-results \
+        ;
+Qiime executed with mesg:
+
+Saved FeatureTable[Frequency] to: Enticeamplicons-sub2-core-metrics-results/rarefied_table.qza
+Saved SampleData[AlphaDiversity] % Properties('phylogenetic') to: Enticeamplicons-sub2-core-metrics-results/faith_pd_vector.qza
+Saved SampleData[AlphaDiversity] to: Enticeamplicons-sub2-core-metrics-results/observed_otus_vector.qza
+Saved SampleData[AlphaDiversity] to: Enticeamplicons-sub2-core-metrics-results/shannon_vector.qza
+Saved SampleData[AlphaDiversity] to: Enticeamplicons-sub2-core-metrics-results/evenness_vector.qza
+Saved DistanceMatrix % Properties('phylogenetic') to: Enticeamplicons-sub2-core-metrics-results/unweighted_unifrac_distance_matrix.qza
+Saved DistanceMatrix % Properties('phylogenetic') to: Enticeamplicons-sub2-core-metrics-results/weighted_unifrac_distance_matrix.qza
+Saved DistanceMatrix to: Enticeamplicons-sub2-core-metrics-results/jaccard_distance_matrix.qza
+Saved DistanceMatrix to: Enticeamplicons-sub2-core-metrics-results/bray_curtis_distance_matrix.qza
+Saved PCoAResults to: Enticeamplicons-sub2-core-metrics-results/unweighted_unifrac_pcoa_results.qza
+Saved PCoAResults to: Enticeamplicons-sub2-core-metrics-results/weighted_unifrac_pcoa_results.qza
+Saved PCoAResults to: Enticeamplicons-sub2-core-metrics-results/jaccard_pcoa_results.qza
+Saved PCoAResults to: Enticeamplicons-sub2-core-metrics-results/bray_curtis_pcoa_results.qza
+Saved Visualization to: Enticeamplicons-sub2-core-metrics-results/unweighted_unifrac_emperor.qzv
+Saved Visualization to: Enticeamplicons-sub2-core-metrics-results/weighted_unifrac_emperor.qzv
+Saved Visualization to: Enticeamplicons-sub2-core-metrics-results/jaccard_emperor.qzv
+Saved Visualization to: Enticeamplicons-sub2-core-metrics-results/bray_curtis_emperor.qzv
+
+Repeating the alpha / beta diversity 'core metrics' analysis to follow days of treatment along with individual dogs through treatment time course
+
+    qiime diversity core-metrics-phylogenetic \
+        --i-phylogeny EnticeAmplicons-rooted-tree.qza \
+        --i-table amplicons-table-dada2.qza \
+        --p-sampling-depth 13286 \
+        --m-metadata-file ENTiCEampliconsAllMetadata.tsv \
+        --output-dir Enticeamplicons-all-core-metrics-results \
+        ;
+        
+ Qiime2 executed command with mesg:
+ 
+  Saved FeatureTable[Frequency] to: Enticeamplicons-all-core-metrics-results/rarefied_table.qza
+Saved SampleData[AlphaDiversity] % Properties('phylogenetic') to: Enticeamplicons-all-core-metrics-results/faith_pd_vector.qza
+Saved SampleData[AlphaDiversity] to: Enticeamplicons-all-core-metrics-results/observed_otus_vector.qza
+Saved SampleData[AlphaDiversity] to: Enticeamplicons-all-core-metrics-results/shannon_vector.qza
+Saved SampleData[AlphaDiversity] to: Enticeamplicons-all-core-metrics-results/evenness_vector.qza
+Saved DistanceMatrix % Properties('phylogenetic') to: Enticeamplicons-all-core-metrics-results/unweighted_unifrac_distance_matrix.qza
+Saved DistanceMatrix % Properties('phylogenetic') to: Enticeamplicons-all-core-metrics-results/weighted_unifrac_distance_matrix.qza
+Saved DistanceMatrix to: Enticeamplicons-all-core-metrics-results/jaccard_distance_matrix.qza
+Saved DistanceMatrix to: Enticeamplicons-all-core-metrics-results/bray_curtis_distance_matrix.qza
+Saved PCoAResults to: Enticeamplicons-all-core-metrics-results/unweighted_unifrac_pcoa_results.qza
+Saved PCoAResults to: Enticeamplicons-all-core-metrics-results/weighted_unifrac_pcoa_results.qza
+Saved PCoAResults to: Enticeamplicons-all-core-metrics-results/jaccard_pcoa_results.qza
+Saved PCoAResults to: Enticeamplicons-all-core-metrics-results/bray_curtis_pcoa_results.qza
+Saved Visualization to: Enticeamplicons-all-core-metrics-results/unweighted_unifrac_emperor.qzv
+Saved Visualization to: Enticeamplicons-all-core-metrics-results/weighted_unifrac_emperor.qzv
+Saved Visualization to: Enticeamplicons-all-core-metrics-results/jaccard_emperor.qzv
+Saved Visualization to: Enticeamplicons-all-core-metrics-results/bray_curtis_emperor.qzv
+
