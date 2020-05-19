@@ -7,4 +7,4 @@ categorizeSample <- function(df, filterVar, filterWord){
     filter(grepl(!!filtWord, !!filterVar)) %>% 
     mutate(category = !!filtWord)
 }
-## this is working, but needs to be extended to categorize the CE samples by dog IDs. See the Statworx tutorial on bang bang (Opera bookmark) particularly the ... part for ideas
+## Needs more programming to avoid repititious code. See the Statworx tutorial on bang bang (Opera bookmark) particularly the ... part for ideas

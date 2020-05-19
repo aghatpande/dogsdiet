@@ -38,15 +38,36 @@ totalPairedReads <- sum(as.numeric(SampleReadCount$spots_with_mates))
 Per Shilpa, the capacity of a MiSeq sequencing run (flow cell?) is 14 million paired end reads (i.e. a total of 28 million reads). Given the total paired reads in this experiment is ~ 12 million, we assume that all these samples were sequenced in a single run. This is important, since we will use all these samples together for analyzing for amplicon sequence variants using the DADA2 analysis tool.
 
 ## Eliminating unnecessary columns, generating a column called 'category' that labels each sample as control, mock, healthy and diseased
-Will eliminate columns that seem unnecessary. Add a category column to facilitate comparision between relavant groups of samples. There are more categories present (diet responsive, non-responsive, days into treatment etc) For now, doing this categorization, may have to depend on SampleName to classify samples later on.
 
-```{r, eliminating unnecessary columns and creating 4 categories}
-CategorizingSamples <- ampliconRuninfo %>% mutate(sampleid = Run) %>% select("sampleid", "SampleName", "spots_with_mates")
-Control <- CategorizingSamples %>%  filter (grepl ("DNA_extract|Water", SampleName)) %>% mutate (category = 'control')
-Mock <- CategorizingSamples %>%  filter (grepl ("Mock", SampleName)) %>% mutate (category = 'mockCommunity')
+```{r reading in supplementary metadata from study}
+map <- read_tsv("/Users/asgghar/edu/metagenomics/beiting/ENTiCE_Mapping_file.txt")
+```
+
+Will eliminate columns(variables) that seem unnecessary. Add new variables to facilitate comparision between relavant groups of samples e.g. between diet responsive, non-responsive, between healthy and diseased dogs, between various time points etc.
+
+```{r, eliminating unnecessary old variables and creating 3 new variables}
+CategorizingSamples <- ampliconRuninfo %>% mutate(sampleid = Run) %>% select("sampleid", "SampleName", "LibraryName")
+Control <- CategorizingSamples %>%  filter (grepl ("DNA_extract|Water", SampleName)) %>% mutate (category = 'control', Remission = 'control', CCECAI = 'NA')
+Mock <- CategorizingSamples %>%  filter (grepl ("Mock", SampleName)) %>% mutate (category = 'MockCommunity',Remission = 'mock', CCECAI = 'NA')
+```
+
+## create a df which has relevant info from the 'map' dataframe (imported earlier) from the authors github files (Wang_ENTiCE_study)
+
+```{r, adding additional metadata for later use}
+relevantMap<- map %>% select('#SampleID', StudyID, Remission, CCECAI)
+relevantMap <- relevantMap %>% rename(LibraryName = '#SampleID') %>% select(LibraryName,Remission,CCECAI)
+relevantMap <- relevantMap %>% transmute(LibraryName = as.character(LibraryName),Remission = as.character(Remission), CCECAI = as.character(CCECAI))
+
+# need a df of all dogs to join to the relevantMap df
 Healthy <- CategorizingSamples %>%  filter (grepl ("Healthy", SampleName)) %>% mutate (category = 'healthy')
 Diseased <- CategorizingSamples %>% filter(grepl("Day", SampleName)) %>% mutate(category = 'diseased')
-samplesCategorized <- bind_rows(Control,Healthy,Mock,Diseased)
+healthyDiseasedtmp <- bind_rows(Healthy,Diseased)
+healthyDiseased <- full_join(healthyDiseasedtmp,relevantMap)
+
+# joining the various sub dfs together to create a big all encompassing one
+samplesCategorized <- bind_rows(Control,Mock,healthyDiseased) %>% select(sampleid, SampleName,category,Remission,CCECAI)
+rm(CategorizingSamples)
+CategorizingSamples = samplesCategorized
 ```
 
 ## Creating a manifest file and uploading the data into Qiime2
@@ -146,7 +167,6 @@ uniqDays <- unique(days)
 dogIDs <- CategorizingSamples %>% filter(grepl("Day", SampleName)) %>% separate(SampleName,c("Name","dogID", "day","libID")) %>% select(dogID)
 uniqdogIDs <- unique(dogIDs)
 ```
-
 Creating sub-categories
 
 The code below uses a custom function to categorize the data. This function currently goes only part of the way towards the *DRY* (Do not Repeat Yourself) principle. It needs to be extended to using the purrr library and the '...' function. See comment at end of the 'categorizeSample.R' script.
@@ -221,18 +241,19 @@ To generate a file called "ENTiCEampliconMetadata.tsv" or "ENTiCEampliconsub1Met
 
 # Currently the metadata file generated with overlapping sample IDs doesnt work in Qiime2. It requires unique sample IDs only
 
-samplesCategorizedSub1 %>% write_tsv("/Users/asgghar/edu/metagenomics/beiting/ENTiCEampliconsub1Metadata.tsv")
+# samplesCategorizedSub1 %>% write_tsv("/Users/asgghar/edu/metagenomics/beiting/ENTiCEampliconsub1Metadata.tsv")
 
-samplesCategorizedSub2 %>% write_tsv("/Users/asgghar/edu/metagenomics/beiting/ENTiCEampliconsub2Metadata.tsv")
+# samplesCategorizedSub2 %>% write_tsv("/Users/asgghar/edu/metagenomics/beiting/ENTiCEampliconsub2Metadata.tsv")
 
 samplesCategorizedAll %>% 
 write_tsv("/Users/asgghar/edu/metagenomics/beiting/ENTiCEampliconsAllMetadata.tsv")
 ```
 
-### reading in supplementary info from paper to identify diet responsive and unresponsive dogs to analyze them as categories
-
-```{r reading in supplementary data from study}
-map <- read_tsv("/Users/asgghar/edu/metagenomics/beiting/ENTiCE_Mapping_file.txt")
+```{r, removing all intermediate dfs}
+rm(allfastqs_manifest,ampliconRuninfo,amplicons_manifest,CategorizingSamples,Control,Diseased,filtered_runinfo,filtrdAmplicons,healthyDiseased,healthyDiseasedtmp,map,relevantMap,samplesCategorized,supplInfo)
+rm(days,uniqDays,dogIDs,uniqdogIDs)
+rm (waterControl,dnaXtractControl,Healthy,Mock,CEday0,CEday14,CEday28,CEday35,CEday42,CEday56,CEdog01,CEdog03,CEdog05,CEdog06,CEdog08,CEdog09,CEdog10,CEdog11, CEdog12,CEdog13,CEdog18,CEdog20,CEdog21,CEdog22,CEdog23,CEdog24,CEdog25, CEdog26,CEdog27,CEdog30,CEdog31,CEdog32,CEdog33,CEdog34,CEdog35,CEdog36,CEdog39,CEdog40,CEdog42)
+rm(samplesCategorizedSub1,samplesCategorizedSub2,samplesCategorizedSubtemp)
 ```
 
 ## Visualizing summary of featuretable and feature ID sequences
@@ -312,32 +333,12 @@ Saved Phylogeny[Rooted] to: EnticeAmplicons-rooted-tree.qza
   
   An important parameter that needs to be provided to this script is --p-sampling-depth, which is the even sampling (i.e. rarefaction) depth. Because most diversity metrics are sensitive to different sampling depths across different samples, this script will randomly subsample the counts from each sample to the value provided for this parameter. For example, if you provide --p-sampling-depth 500, this step will subsample the counts in each sample without replacement so that each sample in the resulting table has a total count of 500. If the total count for any sample(s) are smaller than this value, those samples will be dropped from the diversity analysis. Choosing this value is tricky. We recommend making your choice by reviewing the information presented in the table.qzv file that was created above. Choose a value that is as high as possible (so you retain more sequences per sample) while excluding as few samples as possible.
     
-alpha / beta diversity with only 4 categories 
-
-    qiime diversity core-metrics-phylogenetic \
-     --i-phylogeny EnticeAmplicons-rooted-tree.qza \
-     --i-table amplicons-table-dada2.qza \
-     --p-sampling-depth 13286 \
-     --m-metadata-file ENTiCEampliconMetadata.tsv \
-     --output-dir Enticeamplicons-core-metrics-results \
-     ;
+alpha / beta diversity
      
    * The starting pt for the sampling depth parameter was 10600 from Beiting paper, we inc. sampling depth until we had 25% of features (~ 2.5 million) in 70% (187) samples.
-   
-   Qiime2 executed the command.
 
-Repeating the alpha / beta diversity 'core metrics' analysis to follow individual dogs through treatment time course
 
-    qiime diversity core-metrics-phylogenetic \
-        --i-phylogeny EnticeAmplicons-rooted-tree.qza \
-        --i-table amplicons-table-dada2.qza \
-        --p-sampling-depth 13286 \
-        --m-metadata-file ENTiCEampliconsub2Metadata.tsv \
-        --output-dir Enticeamplicons-sub2-core-metrics-results \
-        ;
-Qiime executed successfully
-
-Repeating the alpha / beta diversity 'core metrics' analysis to follow days of treatment along with individual dogs through treatment time course
+Repeating the alpha / beta diversity 'core metrics' analysis to follow days of treatment along with individual dogs through treatment time course and sorting dogs into diet responsive and unresponsive categories
 
     qiime diversity core-metrics-phylogenetic \
         --i-phylogeny EnticeAmplicons-rooted-tree.qza \
