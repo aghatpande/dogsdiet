@@ -233,6 +233,12 @@ samplesCategorizedSubtemp <- samplesCategorizedSub2 %>% select(sampleid,dogID)
 # joining samplesCategorizedSub1 and samplesCategorizedSub2/temp
 samplesCategorizedAll <- left_join(samplesCategorizedSub1,samplesCategorizedSubtemp,by = "sampleid")
 ```
+All categorical and numerical variables are currently 'character variables. Need to convert them to cotegorical or numerical as appropriate
+
+```{r, classifying variables correctly}
+samplesCategorizedAll <- samplesCategorizedAll %>% mutate(category=as.factor(category),Remission=as.factor(Remission),CCECAI=as.numeric(CCECAI),dogID=as.factor(dogID))
+```
+
 
 To generate a file called "ENTiCEampliconMetadata.tsv" or "ENTiCEampliconsub1Metadata.tsv", or "ENTiCEampliconsub2Metadata.tsv" or "ENTiCEampliconsub2Metadata.tsv" we will use the previously created tibbles: samplesCategorized or samplesCategorizedsub1,...sub2,...All respectively
 
